@@ -7,7 +7,7 @@
             "command": "bash",
             "args": [
                 "-c",
-                "git add . && git commit -m \"Autoupdate: $(date)\" && git push"
+                "git add . && if git diff --cached --quiet; then echo 'No changes to commit - skipping autoupdate'; else git commit -m \"Autoupdate: $(date)\" && git push; fi"
             ],
             "group": "build",
             "presentation": {
