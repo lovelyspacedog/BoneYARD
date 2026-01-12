@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Auto Update and Push",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-c",
+                "git add . && git commit -m \"Autoupdate: $(date)\" && git push"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        }
+    ]
+}
