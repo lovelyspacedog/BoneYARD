@@ -1,0 +1,8 @@
+# BoneYARD database file
+boneyard.json
+
+# Temporary/cache files
+boneyard_buffer.json
+boneyard_dirs.txt
+*.tmp
+
