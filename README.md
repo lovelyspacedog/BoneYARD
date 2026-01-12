@@ -53,7 +53,7 @@ To run BoneYARD, you'll need the following "toys" installed:
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/lovelyspacedog/boneyard.git
+   git clone https://github.com/lovelyspacedog/BoneYARD.git
    cd boneyard
    ```
 
