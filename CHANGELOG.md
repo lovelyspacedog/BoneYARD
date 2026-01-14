@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.5] - 2026-01-14
+
+### Added
+- **🐕 Smart Directory Tagging**:
+  - Integrated duplicate detection: The script now identifies if a bone is already in the yard.
+  - In-place updates: Added the ability to update scents for existing bones directly during bulk tagging.
+  - Enhanced UI: Displays current scents and a warning badge when encountering already buried bones.
+- **🔢 Polished IDs**: Bone IDs are now zero-padded to 4 digits (e.g., `0001`) across all menus, searches, and lists for better alignment.
+
+### Fixed
+- **🛠️ Refined Undo**: Fixed a bug in the directory tagging undo feature to ensure the correct entry is removed from the buffer.
+- **💾 Robust Saving**: Overhauled the save logic for bulk tagging to correctly handle a mix of new bones and scent updates in a single batch.
+
 ## [1.0.4] - 2026-01-13
 
 ### Fixed

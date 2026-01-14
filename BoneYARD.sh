@@ -10,7 +10,7 @@
 set -euo pipefail
 
 # Global Variables
-SOFTWARE_VERSION="1.0.4"
+SOFTWARE_VERSION="1.0.5"
 # This is the version of the database schema. 
 # Backwards compatibility is maintained within the same major version (X.0.0).
 # Software will refuse to run if the major version differs, or if the database 
@@ -729,7 +729,7 @@ add_file() {
         '.files[] | select(.path == $path and .name == $name) | .unique_id' "$DATABASE_FILE")
     
     if [[ -n "$existing_id" ]]; then
-        echo "Woof! This bone is already buried in the yard (ID: $existing_id)"
+        printf "Woof! This bone is already buried in the yard (ID: %04d)\n" "$existing_id"
         if gum confirm "Do you want to update its scents (tags)?"; then
             update_file_tags "$existing_id"
         fi
@@ -784,7 +784,7 @@ add_file() {
     double_bark_sfx
     
     echo ""
-    echo "✓ Bone buried successfully (ID: $next_id)"
+    printf "✓ Bone buried successfully (ID: %04d)\n" "$next_id"
     echo "  Name: $file_name"
     echo "  Path: $dir_path"
     echo "  Scents: ${tags_array[*]}"
@@ -857,6 +857,22 @@ tag_entire_directory() {
         gum style --foreground 208 --bold "  🦴 Bone $((i + 1)) of $total_files"
         gum style --foreground 255 --margin "0 2" "  $file_name"
         
+        # Check for existing entry
+        local existing_data
+        existing_data=$(jq -c --arg path "$dir_path" --arg name "$file_name" \
+            '.files[] | select(.path == $path and .name == $name) | {id: .unique_id, tags: (.tags | join(", "))}' "$DATABASE_FILE" | head -n 1)
+
+        local is_existing=false
+        local existing_id=""
+        local existing_tags=""
+        if [[ -n "$existing_data" ]]; then
+            is_existing=true
+            existing_id=$(echo "$existing_data" | jq -r '.id')
+            existing_tags=$(echo "$existing_data" | jq -r '.tags')
+            gum style --foreground 196 --bold --margin "0 2" "  ⚠️  This bone is already buried!"
+            gum style --foreground 212 --margin "0 2" "  👃 Current scents: $existing_tags"
+        fi
+
         if [[ -n "$last_tags_string" ]]; then
             gum style --foreground 251 --italic --margin "0 2" "  (Last: $last_tags_string)"
         fi
@@ -866,16 +882,30 @@ tag_entire_directory() {
         
         echo ""
         gum style --foreground 250 "  Keys: 'v' (repeat) | 'vvv' (all) | 'undo' (back) | 'q' (save)"
-        gum style --foreground 212 --italic "  (Press Enter to submit scents)"
+        
+        if [[ "$is_existing" == "true" ]]; then
+            gum style --foreground 212 --italic "  (Press Enter to leave UNCHANGED and skip)"
+        else
+            gum style --foreground 212 --italic "  (Press Enter to submit scents)"
+        fi
         
         local tags_input
-        tags_input=$(gum input --prompt "  👃 Scents: " --prompt.foreground 212 --placeholder "comma,separated,tags..." --placeholder.foreground 255 || true)
+        local placeholder="comma,separated,tags..."
+        [[ "$is_existing" == "true" ]] && placeholder="[Enter] to skip or enter new scents..."
+
+        tags_input=$(gum input --prompt "  👃 Scents: " --prompt.foreground 212 --placeholder "$placeholder" --placeholder.foreground 255 || true)
         
         # Handle keywords and empty input
         if [[ -z "$tags_input" ]]; then
-            echo "Scents cannot be empty. Use keywords if needed."
-            sleep 1
-            continue
+            if [[ "$is_existing" == "true" ]]; then
+                # Skip this file
+                i=$((i + 1))
+                continue
+            else
+                echo "Scents cannot be empty. Use keywords if needed."
+                sleep 1
+                continue
+            fi
         fi
 
         case "${tags_input,,}" in
@@ -889,9 +919,14 @@ tag_entire_directory() {
             "undo"|"back"|"-")
                 if [[ $i -gt 0 ]]; then
                     i=$((i - 1))
-                    # Remove the last entry from buffer
-                    jq 'del(.[-1])' "$buffered_json_file" > "$buffered_json_file.tmp"
-                    mv "$buffered_json_file.tmp" "$buffered_json_file"
+                    # Remove the last entry from buffer if it matches the file we are undoing
+                    local last_buffered_name=$(jq -r '.[-1].name' "$buffered_json_file" 2>/dev/null || echo "")
+                    local last_buffered_path=$(jq -r '.[-1].path' "$buffered_json_file" 2>/dev/null || echo "")
+                    local prev_file_name=$(basename "${files[$i]}")
+                    if [[ "$last_buffered_name" == "$prev_file_name" && "$last_buffered_path" == "$dir_path" ]]; then
+                        jq 'del(.[-1])' "$buffered_json_file" > "$buffered_json_file.tmp"
+                        mv "$buffered_json_file.tmp" "$buffered_json_file"
+                    fi
                     # Reset last_tags if we undo
                     last_tags_json="[]"
                     last_tags_string=""
@@ -933,19 +968,40 @@ tag_entire_directory() {
                         local current_file="${files[$i]}"
                         local file_name=$(basename "$current_file")
                         local timestamp=$(date +%s)
-                        local next_id=$(($(get_next_id) + i))
                         
-                        local new_entry
-                        new_entry=$(jq -n \
-                            --arg name "$file_name" \
-                            --arg path "$dir_path" \
-                            --argjson tags "$last_tags_json" \
-                            --argjson id "$next_id" \
-                            --argjson ts "$timestamp" \
-                            '{name: $name, path: $path, tags: $tags, unique_id: $id, modified_timestamp: $ts}')
-                            
-                        jq --argjson entry "$new_entry" '. += [$entry]' "$buffered_json_file" > "$buffered_json_file.tmp"
-                        mv "$buffered_json_file.tmp" "$buffered_json_file"
+                        # Check for existing entry
+                        local existing_id
+                        existing_id=$(jq -r --arg path "$dir_path" --arg name "$file_name" \
+                            '.files[] | select(.path == $path and .name == $name) | .unique_id' "$DATABASE_FILE" | head -n 1)
+
+                        if [[ -n "$existing_id" && "$existing_id" != "null" ]]; then
+                            # Buffer update instead of immediate update
+                            local update_entry
+                            update_entry=$(jq -n \
+                                --arg name "$file_name" \
+                                --arg path "$dir_path" \
+                                --argjson tags "$last_tags_json" \
+                                --argjson id "$existing_id" \
+                                --argjson ts "$timestamp" \
+                                --argjson is_update true \
+                                '{name: $name, path: $path, tags: $tags, unique_id: $id, modified_timestamp: $ts, is_update: $is_update}')
+                            jq --argjson entry "$update_entry" '. += [$entry]' "$buffered_json_file" > "$buffered_json_file.tmp"
+                            mv "$buffered_json_file.tmp" "$buffered_json_file"
+                        else
+                            # Create new entry for buffer
+                            local next_id=$(($(get_next_id) + i))
+                            local new_entry
+                            new_entry=$(jq -n \
+                                --arg name "$file_name" \
+                                --arg path "$dir_path" \
+                                --argjson tags "$last_tags_json" \
+                                --argjson id "$next_id" \
+                                --argjson ts "$timestamp" \
+                                '{name: $name, path: $path, tags: $tags, unique_id: $id, modified_timestamp: $ts}')
+                                
+                            jq --argjson entry "$new_entry" '. += [$entry]' "$buffered_json_file" > "$buffered_json_file.tmp"
+                            mv "$buffered_json_file.tmp" "$buffered_json_file"
+                        fi
                         i=$((i + 1))
                     done
                     break
@@ -976,51 +1032,90 @@ tag_entire_directory() {
                 ;;
         esac
         
-        # Create entry
-        local next_id=$(($(get_next_id) + i)) # Approximate ID, will be recalculated on save
-        local timestamp=$(date +%s)
-        local new_entry
-        new_entry=$(jq -n \
-            --arg name "$file_name" \
-            --arg path "$dir_path" \
-            --argjson tags "$tags_json" \
-            --argjson id "$next_id" \
-            --argjson ts "$timestamp" \
-            '{name: $name, path: $path, tags: $tags, unique_id: $id, modified_timestamp: $ts}')
-            
-        # Add to buffer
-        jq --argjson entry "$new_entry" '. += [$entry]' "$buffered_json_file" > "$buffered_json_file.tmp"
-        mv "$buffered_json_file.tmp" "$buffered_json_file"
+        # Create/Update entry
+        if [[ "$is_existing" == "true" ]]; then
+            # Buffer update instead of immediate update
+            local timestamp=$(date +%s)
+            local update_entry
+            update_entry=$(jq -n \
+                --arg name "$file_name" \
+                --arg path "$dir_path" \
+                --argjson tags "$tags_json" \
+                --argjson id "$existing_id" \
+                --argjson ts "$timestamp" \
+                --argjson is_update true \
+                '{name: $name, path: $path, tags: $tags, unique_id: $id, modified_timestamp: $ts, is_update: $is_update}')
+            jq --argjson entry "$update_entry" '. += [$entry]' "$buffered_json_file" > "$buffered_json_file.tmp"
+            mv "$buffered_json_file.tmp" "$buffered_json_file"
+        else
+            # Add new entry to buffer
+            local next_id=$(($(get_next_id) + i)) # Approximate ID, will be recalculated on save
+            local timestamp=$(date +%s)
+            local new_entry
+            new_entry=$(jq -n \
+                --arg name "$file_name" \
+                --arg path "$dir_path" \
+                --argjson tags "$tags_json" \
+                --argjson id "$next_id" \
+                --argjson ts "$timestamp" \
+                '{name: $name, path: $path, tags: $tags, unique_id: $id, modified_timestamp: $ts}')
+                
+            # Add to buffer
+            jq --argjson entry "$new_entry" '. += [$entry]' "$buffered_json_file" > "$buffered_json_file.tmp"
+            mv "$buffered_json_file.tmp" "$buffered_json_file"
+        fi
         
         i=$((i + 1))
     done
     
-    local completed_count=$(jq '. | length' "$buffered_json_file")
-    if [[ $completed_count -gt 0 ]]; then
+    local total_buffered=$(jq '. | length' "$buffered_json_file")
+    if [[ $total_buffered -gt 0 ]]; then
+        local new_count=$(jq '[.[] | select(.is_update != true)] | length' "$buffered_json_file")
+        local update_count=$(jq '[.[] | select(.is_update == true)] | length' "$buffered_json_file")
+        
         echo ""
-        echo "Burying $completed_count bones."
-        if gum confirm "Save these bones to the BoneYARD?"; then
-            # We need to assign real unique IDs now to avoid collisions if multiple files were added
-            local current_max_id=$(jq '[.files[].unique_id] | max // 0' "$DATABASE_FILE")
+        [[ $new_count -gt 0 ]] && echo "Burying $new_count NEW bones."
+        [[ $update_count -gt 0 ]] && echo "Updating $update_count existing bones."
+        
+        if gum confirm "Save these changes to the BoneYARD?"; then
+            # 1. Apply updates to existing files
+            if [[ $update_count -gt 0 ]]; then
+                while IFS= read -r update; do
+                    local id=$(echo "$update" | jq -r '.unique_id')
+                    local tags=$(echo "$update" | jq -c '.tags')
+                    local ts=$(echo "$update" | jq -r '.modified_timestamp')
+                    jq --argjson id "$id" --argjson tags "$tags" --argjson ts "$ts" \
+                        '(.files[] | select(.unique_id == $id) | .tags) = $tags | 
+                         (.files[] | select(.unique_id == $id) | .modified_timestamp) = $ts' \
+                        "$DATABASE_FILE" > "$DATABASE_FILE.tmp"
+                    mv "$DATABASE_FILE.tmp" "$DATABASE_FILE"
+                done < <(jq -c '.[] | select(.is_update == true)' "$buffered_json_file")
+            fi
+
+            # 2. Append new bones
+            if [[ $new_count -gt 0 ]]; then
+                # Assign real unique IDs now to avoid collisions
+                local current_max_id=$(jq '[.files[].unique_id] | max // 0' "$DATABASE_FILE")
+                
+                # Map over buffered entries to assign correct IDs and remove temporary fields
+                jq --argjson start_id "$current_max_id" \
+                   '[.[] | select(.is_update != true)] | to_entries | map(.value | del(.is_update) + {unique_id: ($start_id + .key + 1)})' \
+                   "$buffered_json_file" > "$buffered_json_file.tmp"
+                
+                # Append to database
+                jq --argjson new_files "$(cat "$buffered_json_file.tmp")" \
+                   '.files += $new_files' "$DATABASE_FILE" > "$DATABASE_FILE.tmp"
+                mv "$DATABASE_FILE.tmp" "$DATABASE_FILE"
+            fi
             
-            # Map over buffered entries to assign correct IDs
-            jq --argjson start_id "$current_max_id" \
-               'to_entries | map(.value + {unique_id: ($start_id + .key + 1)})' \
-               "$buffered_json_file" > "$buffered_json_file.tmp"
-            
-            # Append to database
-            jq --argjson new_files "$(cat "$buffered_json_file.tmp")" \
-               '.files += $new_files' "$DATABASE_FILE" > "$DATABASE_FILE.tmp"
-            mv "$DATABASE_FILE.tmp" "$DATABASE_FILE"
             update_dir_cache
             double_bark_sfx
-            
-            echo "✓ Successfully saved $completed_count bones to BoneYARD."
+            echo "✓ BoneYARD updated successfully."
         else
             echo "Changes discarded. Litter remains unburied."
         fi
     else
-        echo "No bones were buried."
+        echo "No bones were buried or modified."
     fi
     
     rm -f "$buffered_json_file"
@@ -1118,7 +1213,7 @@ select_and_update_file() {
     else
         play_menu_sound
         local selection
-        selection=$(echo "$results_json" | jq -r '"\(.unique_id): \(.name) (\(.path)) [\(.tags | join(", "))]"' | gum choose --header "🔍 Select A Bone To Update Scents:" || true)
+        selection=$(echo "$results_json" | jq -r '"\(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end): \(.name) (\(.path)) [\(.tags | join(", "))]"' | gum choose --header "🔍 Select A Bone To Update Scents:" || true)
         
         if [[ -z "$selection" ]]; then
             return 1
@@ -1297,7 +1392,7 @@ search_by_tag() {
     results=$(jq -r --arg tag "$search_tag" --arg dir "$dir_filter" \
         '. as $root | .files | sort_by(.modified_timestamp) | reverse | .[] | 
          select(($dir == "" or .path == $dir) and (.tags[] | ascii_downcase == ($tag | ascii_downcase))) | 
-         "[\((.modified_timestamp + ($root["timezone-offset"] // 0)) | strftime("%Y-%m-%d %H:%M"))] ID: \(.unique_id) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"' \
+         "[\((.modified_timestamp + ($root["timezone-offset"] // 0)) | strftime("%Y-%m-%d %H:%M"))] ID: \(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"' \
         "$DATABASE_FILE")
     
     if [[ -z "$results" ]]; then
@@ -1345,7 +1440,7 @@ search_by_name() {
     results=$(jq -r --arg name "$search_name" --arg dir "$dir_filter" \
         '. as $root | .files | sort_by(.modified_timestamp) | reverse | .[] | 
          select(($dir == "" or .path == $dir) and (($name == "") or (.name | ascii_downcase | contains($name | ascii_downcase)))) | 
-         "[\((.modified_timestamp + ($root["timezone-offset"] // 0)) | strftime("%Y-%m-%d %H:%M"))] ID: \(.unique_id) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"' \
+         "[\((.modified_timestamp + ($root["timezone-offset"] // 0)) | strftime("%Y-%m-%d %H:%M"))] ID: \(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"' \
         "$DATABASE_FILE")
     
     if [[ -z "$results" ]]; then
@@ -1386,7 +1481,7 @@ list_all_files() {
     else
         jq -r --arg dir "$dir_filter" '. as $root | .files | sort_by(.modified_timestamp) | reverse | .[] | 
             select($dir == "" or .path == $dir) | 
-            "[\((.modified_timestamp + ($root["timezone-offset"] // 0)) | strftime("%Y-%m-%d %H:%M"))] ID: \(.unique_id) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"' \
+            "[\((.modified_timestamp + ($root["timezone-offset"] // 0)) | strftime("%Y-%m-%d %H:%M"))] ID: \(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"' \
             "$DATABASE_FILE"
         echo ""
         echo "Total bones: $total_files"
@@ -1514,7 +1609,7 @@ organize_bones() {
     offset=$(jq -r '.["timezone-offset"] // 0' "$DATABASE_FILE")
     echo "$matches_json" | jq -r --arg offset "$offset" \
         '((.modified_timestamp + ($offset | tonumber)) | strftime("[%Y-%m-%d %H:%M]")) as $ts |
-         "\($ts) ID: \(.unique_id) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"'
+         "\($ts) ID: \(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"'
     echo ""
     
     # 2. Destination
@@ -1878,7 +1973,7 @@ remove_by_name() {
         
         echo ""
         gum style --foreground 212 "✅ Match Found:"
-        echo "$matches" | jq -r '"  ID: \(.unique_id) | Name: \(.name) | Kennel: \(.path)"'
+        echo "$matches" | jq -r '"  ID: \(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end) | Name: \(.name) | Kennel: \(.path)"'
         
         echo ""
         if gum confirm "Dig up this bone from BoneYARD?"; then
@@ -1893,7 +1988,7 @@ remove_by_name() {
         # Multiple matches found
         echo ""
         gum style --foreground 212 "👯 Multiple Matches Found For '$search_name':"
-        echo "$matches" | jq -r '"  ID: \(.unique_id) | Name: \(.name) | Kennel: \(.path)"'
+        echo "$matches" | jq -r '"  ID: \(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end) | Name: \(.name) | Kennel: \(.path)"'
         echo ""
         local file_id
         file_id=$(gum input --placeholder "Enter ID to dig up (or leave blank to cancel)" || true)
