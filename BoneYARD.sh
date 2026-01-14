@@ -431,10 +431,14 @@ perform_update() {
     echo "Fetching the new yard files..."
     local download_dir="/tmp/boneyard-update-$(date +%s)"
     
-    if ! git clone --depth 1 https://github.com/lovelyspacedog/BoneYARD.git "$download_dir" &>/dev/null; then
-        echo "Error: Failed to fetch the new yard files. Check your connection."
+    # Don't hide git errors; the user needs to see why it failed (e.g., network, proxy)
+    if ! git clone --depth 1 https://github.com/lovelyspacedog/BoneYARD.git "$download_dir"; then
+        echo ""
+        gum style --foreground 196 "❌ Error: Failed to fetch the new yard files."
+        echo "Please check your internet connection or git configuration."
         rm -rf "$download_dir"
         pause
+        main_menu
         return 1
     fi
 
@@ -2216,7 +2220,10 @@ main_menu() {
     fi
 
     case $choice in
-        "🚀 Rebuild Doghouse (New Update Available!)") perform_update "$REMOTE_VERSION";;
+        "🚀 Rebuild Doghouse (New Update Available!)") 
+            perform_update "$REMOTE_VERSION"
+            main_menu
+            ;;
         "🦴 Bury New Bone") add_file;;
         "🐕 Bury Entire Litter") tag_entire_directory;;
         "👃 Update Scents (Edit)") edit_tags;;
