@@ -22,10 +22,12 @@ BoneYARD uses dumb doggo terminology, such as:
 ## ✨ Main Features
 
 - **🦴 Bury New Bone**: Pick a file using `ranger` and assign searchable scents.
-- **🐕 Bury Entire Litter**: Batch-tag an entire kennel with interactive copy, undo, and skip functionality.
+- **🐕 Bury Entire Litter**: Batch-tag an entire kennel with interactive copy, undo, skip, and "all" functionality.
 - **👃 Update Scents**: Quickly update or add new scents to any bone already in the yard.
 - **🎾 Fetch Bones**: Highly flexible search system. Filter by scent, bone name, or kennel.
 - **📊 Pack Stats**: View comprehensive statistics, including scent frequency and recent burial activity.
+- **🏘️ Switch Yard**: Move the pack to a different JSON database file. (Note: This simply opens the selected yard; bones are not transferred between files.)
+- **🖼️ Bone Previews**: Automatic image and video previews (via thumbnails) for Kitty terminal users.
 - **🌋 Incinerate the Yard**: A high-security database wipe featuring a 12-word pass-phrase confirmation.
 - **📜 Kennel Rules**: Integrated viewer for the GPLv3 license.
 
@@ -40,8 +42,12 @@ To run BoneYARD, you'll need the following "toys" installed:
 - **`ranger`**: Terminal file manager for bone selection.
 - **`gum`**: For the beautiful TUI menus and styling.
 - **`shuf`**: For security phrases and variety.
+- **`file`**: For identifying bone types (MIME detection).
 
 ### Optional (Recommended):
+- **`kitty`**: For terminal graphics support (bone previews).
+- **`ffmpeg`**: For generating video thumbnails in previews.
+- **`ImageMagick` (`magick`)**: For high-quality image thumbnails in previews.
 - **`sox` (`play`)**: For subtle menu audio feedback.
 - **`curl`** or **`wget`**: To fetch the full license text from online mirrors.
 - **`nvim`**, **`nano`**, or **`less`**: Your preferred pager for reading rules.
@@ -77,6 +83,7 @@ To run BoneYARD, you'll need the following "toys" installed:
 - `boneyard.json`: The default database file (created automatically if missing).
 - `wordlist.txt`: A local fallback wordlist for pass-phrase generation.
 - `LICENSE`: Full GNU General Public License v3 text.
+- `CHANGELOG.md`: Detailed history of project changes.
 - `README.md`: The file you are currently reading!
 
 ---
@@ -103,7 +110,7 @@ You can also sniff out scents directly from the terminal:
 Running `./boneyard --help` provides the following reference:
 
 ```text
-🐾 BoneYARD v1.0.1 (Yappy Archive and Retrieval Database)
+🐾 BoneYARD v1.0.2 (Yappy Archive and Retrieval Database)
 A powerful, interactive TUI system for burying and fetching bones using JSON.
 
 USAGE:
@@ -129,12 +136,17 @@ OPTIONS:
 MAIN FEATURES:
   Bury New Bone       Pick a bone using ranger and assign searchable scents.
   Bury Entire Litter  Batch-bury an entire kennel with interactive 
-                      copy/undo/skip functionality.
+                      copy/undo/skip/all functionality.
   Update Scents       Quickly update scents for any bone in the yard.
   Fetch Bones         Filter by scent, bone name (contains), or kennel.
   Show Pack Stats     View scent frequency, kennel counts, and recent activity.
+  Switch Yard         Open a different JSON database file (bones are not moved).
   Incinerate Yard     Permanently wipe the yard with high-security 
                       phrase confirmation and fuzzy-match recovery.
+
+BONE PREVIEWS:
+  Users in the Kitty terminal will see automatic previews of images 
+  and videos (via thumbnails) during the tagging process.
 
 EXAMPLES:
   # Launch interactive TUI (default)
@@ -153,7 +165,7 @@ EXAMPLES:
   BoneYARD.sh --pager safe
 
 ENVIRONMENT:
-  Requires: jq, ranger, gum, shuf
+  Requires: jq, ranger, gum, shuf, file
   Optional: play (from sox) for menu audio feedback.
 
 Copyright (c) 2025-2026 Pup Tony under GPLv3.

@@ -10,7 +10,7 @@
 set -euo pipefail
 
 # Global Variables
-SOFTWARE_VERSION="1.0.1"
+SOFTWARE_VERSION="1.0.2"
 # This is the version of the database schema. 
 # Backwards compatibility is maintained within the same major version (X.0.0).
 # Software will refuse to run if the major version differs, or if the database 
@@ -26,7 +26,7 @@ WITH_DIR=false
 WITH_DIR_SEP=","
 CONTAINS_SEARCH=false
 
-# Goodbye phrases
+# Goodbye phrases; yeah I know they're cheesy, but I'm a dog person.
 declare -a goodbye_text=(
     "Woof woof! (Goodbye!)"
     "Tail wags for now!"
@@ -34,57 +34,59 @@ declare -a goodbye_text=(
     "See you later, pup!"
     "Bone-voyage!"
     "Stay paw-sitive!"
-    "Goodbye!"
-    "Farewell!"
-    "See you later!"
-    "Take care!"
-    "Until next time!"
-    "Have a great day!"
-    "All the best!"
-    "Take it easy!"
-    "Catch you later!"
-    "So long!"
-    "Adios!"
-    "Cheers!"
-    "Bye for now!"
-    "See you soon!"
-    "Later!"
-    "Peace out!"
-    "Smell you later!"
-    "Ciao!"
-    "Au revoir!"
-    "Sayonara!"
-    "Toodles!"
-    "Ta-ta!"
-    "Hasta la vista!"
-    "Goodbye and good luck!"
-    "Wishing you well!"
-    "Until we meet again!"
-    "Be well!"
-    "Stay safe!"
-    "Godspeed!"
-    "Bye-bye!"
-    "Later, alligator!"
-    "In a while, crocodile!"
-    "Keep in touch!"
-    "Take care now!"
-    "Don't be a stranger!"
-    "Have a good one!"
-    "Be good!"
-    "Cheers, mate!"  # Informal/Australian
-    "Ta-ra!"         # Informal/British
-    "Tschüss!"       # German
-    "Arrivederci!"   # Italian
-    "Adieu!"         # French (more formal/final)
-    "Tot ziens!"     # Dutch
-    "Do svidaniya!"  # Russian
-    "Annyeong!"      # Korean
-    "Zài jiàn!"      # Chinese
-    "Aloha!"         # Hawaiian (also means hello)
-    "Shalom!"        # Hebrew
-    "Khuda hafiz!"   # Urdu
-    "Namaste!"       # Hindi/Nepali (with goodbye meaning)
-    "Salamat po!"    # Filipino (Thank you, but often used when parting)
+    "Paws out!"
+    "Fur-well!"
+    "Un-leash the fun until next time!"
+    "Stop, drop, and roll over!"
+    "Hope your day is paw-some!"
+    "Bark at you later!"
+    "Have a howling good time!"
+    "Don't work too hard, stay ruff!"
+    "Keep your tail held high!"
+    "Stay furry, my friend!"
+    "A round of a-paws for your work today!"
+    "Fur-ever yours!"
+    "Sniff you soon!"
+    "Be the good boy I know you are!"
+    "Time to go for a walkies!"
+    "Back to the kennel!"
+    "Rest your paws!"
+    "Stay fetching!"
+    "Don't stop re-triever-ing!"
+    "Paws and reflect on a job well done!"
+    "You're the leader of the pack!"
+    "Wag more, bark less!"
+    "Life is ruff, but you're doing great!"
+    "Everything is paw-sible!"
+    "You're a real treat!"
+    "No more digging for today!"
+    "Go fetch some rest!"
+    "Stay paws-ed until we meet again!"
+    "A-woooooo! (See ya!)"
+    "Keep on wagging!"
+    "Hope your dreams are full of squirrels!"
+    "Keep your nose to the ground!"
+    "Stay loyal to the yard!"
+    "You've earned a gold medal in fetching!"
+    "Quit hounding me and go play!"
+    "See you in the dog days!"
+    "You're the top dog!"
+    "Don't let the cat get your tongue!"
+    "Pawsitively finished for now!"
+    "Time to curl up and nap!"
+    "Lick you later!"
+    "Sniff out some fun!"
+    "Keep your ears up!"
+    "Stay paw-some!"
+    "Woofing you all the best!"
+    "Catch you on the flip-flop (or the flip-paw)!"
+    "Happy trails and wagging tails!"
+    "Don't bark up the wrong tree!"
+    "You're a fur-midable human!"
+    "Stay dogged in your pursuits!"
+    "A wagging tail is a happy heart!"
+    "Chew on that until next time!"
+    "Paws for thought!"
 )
 
 # Argument Parsing
@@ -116,12 +118,17 @@ OPTIONS:
 MAIN FEATURES:
   Bury New Bone       Pick a bone using ranger and assign searchable scents.
   Bury Entire Litter  Batch-bury an entire kennel with interactive 
-                      copy/undo/skip functionality.
+                      copy/undo/skip/all functionality.
   Update Scents       Quickly update scents for any bone in the yard.
   Fetch Bones         Filter by scent, bone name (contains), or kennel.
   Show Pack Stats     View scent frequency, kennel counts, and recent activity.
+  Switch Yard         Open a different JSON database file (bones are not moved).
   Incinerate Yard     Permanently wipe the yard with high-security 
                       phrase confirmation and fuzzy-match recovery.
+
+BONE PREVIEWS:
+  Users in the Kitty terminal will see automatic previews of images 
+  and videos (via thumbnails) during the tagging process.
 
 EXAMPLES:
   # Launch interactive TUI (default)
@@ -140,11 +147,22 @@ EXAMPLES:
   $(basename "$0") --pager safe
 
 ENVIRONMENT:
-  Requires: jq, ranger, gum, shuf
+  Requires: jq, ranger, gum, shuf, file
   Optional: play (from sox) for menu audio feedback.
 
 Copyright (c) 2025$([[ $(date +%Y) != "2025" ]] && echo "-$(date +%Y)") Pup Tony under GPLv3.
 EOF
+}
+
+double_bark_sfx() {
+    command -v play &> /dev/null || return 0
+    # Sequence two distinct barks in the background
+    (
+        # First Bark: Higher and sharper
+        play -q -n synth 0.12 sine 500:150 vol 0.4 < /dev/null > /dev/null 2>&1
+        # Second Bark: Slightly lower and deeper
+        play -q -n synth 0.12 sine 450:100 vol 0.4 < /dev/null > /dev/null 2>&1
+    ) &
 }
 
 # Output tags for a specific file and exit
@@ -277,7 +295,7 @@ parse_arguments() {
 # Check if dependencies are installed
 check_dependencies() {
     local missing_deps=()
-    for dep in jq ranger gum shuf; do
+    for dep in jq ranger gum shuf file; do
         if ! command -v "$dep" &> /dev/null; then
             missing_deps+=("$dep")
         fi
@@ -303,7 +321,62 @@ typewrite() {
         printf "%s" "${text:$i:1}"
         sleep "$delay"
     done
-    echo ""
+    printf "\n"
+    sleep 0.5
+}
+
+# Display a preview of the bone if it's an image or video (Kitty only)
+display_bone_preview() {
+    local file_path="$1"
+    
+    # Use kitty's own detection to see if graphics are supported
+    if ! command -v kitty &> /dev/null; then
+        return 0
+    fi
+    
+    if ! kitty +kitten icat --detect-support &>/dev/null; then
+        return 0
+    fi
+
+    local mime_type
+    mime_type=$(file --mime-type -b "$file_path" 2>/dev/null || echo "")
+
+    if [[ "$mime_type" == image/* ]] || [[ "$mime_type" == video/* ]]; then
+        echo ""
+        gum style --foreground 212 "  🖼️  Bone Preview:"
+    fi
+
+    if [[ "$mime_type" == image/* ]]; then
+        # Display image using kitty icat
+        if command -v magick &> /dev/null; then
+            local thumb_path="/tmp/boneyard_img_thumb.png"
+            if magick "$file_path" -resize 400x400\> "$thumb_path" 2>/dev/null && [[ -f "$thumb_path" ]]; then
+                kitty +kitten icat --silent --transfer-mode stream --align left "$thumb_path"
+                rm -f "$thumb_path"
+            else
+                # Fallback if magick fails
+                kitty +kitten icat --silent --transfer-mode stream --align left "$file_path"
+            fi
+        else
+            kitty +kitten icat --silent --transfer-mode stream --align left "$file_path"
+        fi
+    elif [[ "$mime_type" == video/* ]]; then
+        # Check for ffmpeg to generate a thumbnail
+        if command -v ffmpeg &> /dev/null; then
+            local thumb_path="/tmp/boneyard_preview_thumb.jpg"
+            # Try to grab a frame at 10 seconds, fallback to 0 if video is shorter
+            if ffmpeg -hide_banner -loglevel error -ss 10 -i "$file_path" -frames:v 1 -vf "scale=400:-1" "$thumb_path" -y || \
+               ffmpeg -hide_banner -loglevel error -i "$file_path" -frames:v 1 -vf "scale=400:-1" "$thumb_path" -y; then
+                
+                if [[ -f "$thumb_path" ]]; then
+                    kitty +kitten icat --silent --transfer-mode stream --align left "$thumb_path"
+                    rm -f "$thumb_path"
+                fi
+            fi
+        fi
+    fi
+    # Give the terminal a tiny moment to render the image before the next command
+    sleep 0.05
 }
 
 # Compare two semantic versions
@@ -347,13 +420,26 @@ check_compatibility() {
     fi
 
     # Rule 2: Software version must be >= Database version
-    version_compare "$SOFTWARE_VERSION" "$db_version"
-    local res=$?
+    local res=0
+    version_compare "$SOFTWARE_VERSION" "$db_version" || res=$?
     if [[ $res -eq 2 ]]; then
         echo "Error: Database version ($db_version) is newer than software version ($SOFTWARE_VERSION)!"
         typewrite "Please update BoneYARD to the latest version to use this database."
         exit 1
+    elif [[ $res -eq 1 ]]; then
+        echo ""
+        gum style --foreground 212 "🐾 Database Version Update"
+        echo "Current Database: $db_version"
+        echo "Software Version: $SOFTWARE_VERSION"
+        echo ""
+        if gum confirm "Would you like to update the database version to match the software?"; then
+            jq --arg ver "$SOFTWARE_VERSION" '.version = $ver' "$DATABASE_FILE" > "$DATABASE_FILE.tmp"
+            mv "$DATABASE_FILE.tmp" "$DATABASE_FILE"
+            typewrite "✓ Database version updated to $SOFTWARE_VERSION."
+            echo ""
+        fi
     fi
+    return 0
 }
 
 # Select a timezone offset
@@ -554,6 +640,7 @@ add_file() {
     jq --argjson entry "$new_entry" '.files += [$entry]' "$DATABASE_FILE" > "$DATABASE_FILE.tmp"
     mv "$DATABASE_FILE.tmp" "$DATABASE_FILE"
     update_dir_cache
+    double_bark_sfx
     
     echo ""
     echo "✓ Bone buried successfully (ID: $next_id)"
@@ -622,15 +709,25 @@ tag_entire_directory() {
         local file_name=$(basename "$current_file")
         
         clear
-        gum style --foreground 212 --border double --padding "0 1" "Burying Litter in: $dir_path"
-        echo "Litter Progress: $((i + 1)) / $total_files"
-        echo "Current Bone: $file_name"
-        [[ -n "$last_tags_string" ]] && echo "Previous Scents: $last_tags_string"
-        echo "--------------------------------"
-        echo "Keywords: 'same'/'copy'/'cp'/'v' to repeat, 'undo'/'back'/'-' for previous, 'quit'/'q' to finish"
+        gum style --foreground 212 --border double --padding "0 1" "🐕 Burying Litter in: $dir_path"
+        
+        # Progress and File Info
+        gum style --foreground 208 --bold "  🦴 Bone $((i + 1)) of $total_files"
+        gum style --foreground 255 --margin "0 2" "  $file_name"
+        
+        if [[ -n "$last_tags_string" ]]; then
+            gum style --foreground 251 --italic --margin "0 2" "  (Last: $last_tags_string)"
+        fi
+
+        # Show preview for images/videos if in Kitty
+        display_bone_preview "$current_file"
+        
+        echo ""
+        gum style --foreground 250 "  Keys: 'v' (repeat) | 'vvv' (all) | 'undo' (back) | 'q' (save)"
+        gum style --foreground 212 --italic "  (Press Enter to submit scents)"
         
         local tags_input
-        tags_input=$(gum input --placeholder "Enter scents (comma-separated)" || true)
+        tags_input=$(gum input --prompt "  👃 Scents: " --prompt.foreground 212 --placeholder "comma,separated,tags..." --placeholder.foreground 255 || true)
         
         # Handle keywords and empty input
         if [[ -z "$tags_input" ]]; then
@@ -649,7 +746,7 @@ tag_entire_directory() {
                 ;;
             "undo"|"back"|"-")
                 if [[ $i -gt 0 ]]; then
-                    ((i -= 1))
+                    i=$((i - 1))
                     # Remove the last entry from buffer
                     jq 'del(.[-1])' "$buffered_json_file" > "$buffered_json_file.tmp"
                     mv "$buffered_json_file.tmp" "$buffered_json_file"
@@ -671,6 +768,48 @@ tag_entire_directory() {
                 fi
                 # Use last_tags_json
                 tags_json="$last_tags_json"
+                ;;
+            "vvv"|"all")
+                if [[ "$last_tags_json" == "[]" ]]; then
+                    echo "No previous scents to copy."
+                    sleep 1
+                    continue
+                fi
+                
+                local remaining=$((total_files - i))
+                if gum confirm "Apply scents '$last_tags_string' to ALL $remaining remaining bones?"; then
+                    # Apply to previous entries if requested
+                    if [[ $i -gt 0 ]]; then
+                        if gum confirm "Would you also like to apply these scents to the $i PREVIOUS bones in this litter?"; then
+                            jq --argjson tags "$last_tags_json" 'map(.tags = $tags)' "$buffered_json_file" > "$buffered_json_file.tmp"
+                            mv "$buffered_json_file.tmp" "$buffered_json_file"
+                        fi
+                    fi
+
+                    # Apply to current and all remaining
+                    while (( i < total_files )); do
+                        local current_file="${files[$i]}"
+                        local file_name=$(basename "$current_file")
+                        local timestamp=$(date +%s)
+                        local next_id=$(($(get_next_id) + i))
+                        
+                        local new_entry
+                        new_entry=$(jq -n \
+                            --arg name "$file_name" \
+                            --arg path "$dir_path" \
+                            --argjson tags "$last_tags_json" \
+                            --argjson id "$next_id" \
+                            --argjson ts "$timestamp" \
+                            '{name: $name, path: $path, tags: $tags, unique_id: $id, modified_timestamp: $ts}')
+                            
+                        jq --argjson entry "$new_entry" '. += [$entry]' "$buffered_json_file" > "$buffered_json_file.tmp"
+                        mv "$buffered_json_file.tmp" "$buffered_json_file"
+                        i=$((i + 1))
+                    done
+                    break
+                else
+                    continue
+                fi
                 ;;
             *)
                 if [[ -z "$tags_input" ]]; then
@@ -711,7 +850,7 @@ tag_entire_directory() {
         jq --argjson entry "$new_entry" '. += [$entry]' "$buffered_json_file" > "$buffered_json_file.tmp"
         mv "$buffered_json_file.tmp" "$buffered_json_file"
         
-        ((i += 1))
+        i=$((i + 1))
     done
     
     local completed_count=$(jq '. | length' "$buffered_json_file")
@@ -732,6 +871,7 @@ tag_entire_directory() {
                '.files += $new_files' "$DATABASE_FILE" > "$DATABASE_FILE.tmp"
             mv "$DATABASE_FILE.tmp" "$DATABASE_FILE"
             update_dir_cache
+            double_bark_sfx
             
             echo "✓ Successfully saved $completed_count bones to BoneYARD."
         else
@@ -1499,7 +1639,7 @@ delete_entire_database() {
             local target_word="${words[$j]}"
             local input_word="${user_words_arr[$j]:-}"
             if [[ "$input_word" == "$target_word" ]]; then
-                ((match_count += 1))
+                match_count=$((match_count + 1))
             else
                 mismatches+=("Word $((j+1)): Expected '$target_word', got '${input_word:-[nothing]}'")
             fi
@@ -1611,6 +1751,71 @@ show_stats() {
     main_menu
 }
 
+# Switch to a different yard (database file) and restart
+switch_yard() {
+    play_menu_sound
+    echo ""
+    gum style --foreground 212 --border double --padding "0 1" "🏘️ Switch Yard"
+    
+    local temp_file="/tmp/ranger_chosen_db.txt"
+    rm -f "$temp_file"
+    
+    echo "Sniffing for a different BoneYARD JSON (launching ranger)..."
+    sleep 2
+    ranger --choosefile="$temp_file" "$HOME"
+    
+    if [[ ! -s "$temp_file" ]]; then
+        echo "No yard selected."
+        pause
+        main_menu
+        return
+    fi
+    
+    local new_db
+    new_db=$(realpath "$(cat "$temp_file")")
+    rm -f "$temp_file"
+    
+    if [[ ! -f "$new_db" ]]; then
+        echo "Error: Selected file is not valid."
+        pause
+        main_menu
+        return
+    fi
+
+    # Basic JSON validation to ensure it's at least a JSON file
+    if ! jq '.' "$new_db" &>/dev/null; then
+        echo "Error: Selected file is not a valid JSON BoneYARD."
+        pause
+        main_menu
+        return
+    fi
+
+    echo ""
+    typewrite "Switching to: $new_db"
+    typewrite "The pack is moving to a new yard! (No bones will be transferred.)"
+    sleep 1.5
+
+    # Prepare arguments: remove existing --database/-d and add the new one
+    local -a new_args=()
+    local skip_next=false
+    for arg in "$@"; do
+        if [[ "$skip_next" == "true" ]]; then
+            skip_next=false
+            continue
+        fi
+        case "$arg" in
+            -d|--database)
+                skip_next=true
+                ;;
+            *)
+                new_args+=("$arg")
+                ;;
+        esac
+    done
+
+    exec "$0" "--database" "$new_db" "${new_args[@]}"
+}
+
 # Display the license
 read_license() {
     play_menu_sound
@@ -1689,7 +1894,7 @@ EOF
     fi
     
     if [[ "$pulled" == "false" ]]; then
-        gum style --foreground 243 "⚠️  Online version unavailable. Using embedded text."
+        gum style --foreground 250 "⚠️  Online version unavailable. Using embedded text."
         sleep 1.5
         # Fallback version includes the critical warranty/liability clauses
         cat <<EOF > "$temp_license"
@@ -1770,12 +1975,12 @@ read_license_safe_pager() {
         local restart=false
         
         # Display header
-        gum style --foreground 243 "=== LICENSE TEXT ==="
+        gum style --foreground 250 "=== LICENSE TEXT ==="
         echo ""
         
         while IFS= read -r line; do
             echo "$line"
-            ((line_count += 1))
+            line_count=$((line_count + 1))
             
             if (( line_count % lines_per_page == 0 )); then
                 echo ""
@@ -1795,7 +2000,7 @@ read_license_safe_pager() {
                         break  # Break inner loop to restart from top
                         ;;
                     *)
-                        ((current_page++))
+                        current_page=$((current_page + 1))
                         ;;
                 esac
             fi
@@ -1831,7 +2036,9 @@ read_license_auto_pager() {
 
 # Main menu
 main_menu() {
-    play_menu_sound
+    if [[ "${1:-}" != "--no-sound" ]]; then
+        play_menu_sound
+    fi
     clear
     gum style \
         --foreground 212 --border-foreground 212 --border double \
@@ -1847,11 +2054,13 @@ main_menu() {
         "🎾 Fetch Bones (Search)" \
         "🧹 Clean Up the Yard (Remove)" \
         "📊 Pack Stats" \
+        "🏘️ Switch Yard" \
         "🌋 Incinerate the Yard" \
         "📜 Kennel Rules (License)" \
         "🚪 Kennel Sleep (Exit)" || true)
     
     if [[ -z "$choice" ]]; then
+        double_bark_sfx
         typewrite "$(printf "%s\n" "${goodbye_text[@]}" | shuf -n 1)"
         exit 0
     fi
@@ -1863,9 +2072,14 @@ main_menu() {
         "🎾 Fetch Bones (Search)") search_file;;
         "🧹 Clean Up the Yard (Remove)") remove_file;;
         "📊 Pack Stats") show_stats;;
+        "🏘️ Switch Yard") switch_yard "$@";;
         "🌋 Incinerate the Yard") delete_entire_database;;
         "📜 Kennel Rules (License)") read_license;;
-        "🚪 Kennel Sleep (Exit)") typewrite "$(printf "%s\n" "${goodbye_text[@]}" | shuf -n 1)"; exit 0;;
+        "🚪 Kennel Sleep (Exit)") 
+            double_bark_sfx
+            typewrite "$(printf "%s\n" "${goodbye_text[@]}" | shuf -n 1)"
+            exit 0
+            ;;
         *) main_menu;;
     esac
 }
@@ -1877,7 +2091,8 @@ main() {
     check_compatibility
     init_database
     update_dir_cache
-    main_menu
+    double_bark_sfx
+    main_menu --no-sound
 }
 
 main "$@"
