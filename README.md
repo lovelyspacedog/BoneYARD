@@ -27,6 +27,7 @@ BoneYARD uses dumb doggo terminology, such as:
 - **🎾 Fetch Bones**: Highly flexible search system. Filter by scent, bone name, or kennel.
 - **📊 Pack Stats**: View comprehensive statistics, including scent frequency and recent burial activity.
 - **🏘️ Switch Yard**: Move the pack to a different JSON database file. (Note: This simply opens the selected yard; bones are not transferred between files.)
+- **🚀 Rebuild Doghouse**: Automatic background version check with one-click update and relaunch. Includes a "clutter check" to protect shared folders (like Downloads) by offering a Minimal Update (copies ONLY `BoneYARD.sh`).
 - **🖼️ Bone Previews**: Automatic image and video previews (via thumbnails) for Kitty terminal users.
 - **🌋 Incinerate the Yard**: A high-security database wipe featuring a 12-word pass-phrase confirmation.
 - **📜 Kennel Rules**: Integrated viewer for the GPLv3 license.
@@ -43,13 +44,14 @@ To run BoneYARD, you'll need the following "toys" installed:
 - **`gum`**: For the beautiful TUI menus and styling.
 - **`shuf`**: For security phrases and variety.
 - **`file`**: For identifying bone types (MIME detection).
+- **`curl`**: To check for and download updates.
+- **`git`**: To pull the latest version from the repository.
 
 ### Optional (Recommended):
 - **`kitty`**: For terminal graphics support (bone previews).
 - **`ffmpeg`**: For generating video thumbnails in previews.
 - **`ImageMagick` (`magick`)**: For high-quality image thumbnails in previews.
 - **`sox` (`play`)**: For subtle menu audio feedback.
-- **`curl`** or **`wget`**: To fetch the full license text from online mirrors.
 - **`nvim`**, **`nano`**, or **`less`**: Your preferred pager for reading rules.
 - **`/usr/share/dict/words`**: Standard Linux dictionary for pass-phrases (fallback provided by `wordlist.txt`).
 
@@ -86,6 +88,8 @@ To run BoneYARD, you'll need the following "toys" installed:
 - `CHANGELOG.md`: Detailed history of project changes.
 - `README.md`: The file you are currently reading!
 
+> **Note on Standalone Operation**: `BoneYARD.sh` is designed to be fully portable. While this repository includes several helper files, the only file strictly required to run the full TUI is `BoneYARD.sh`. Other files like `wordlist.txt`, `LICENSE`, and the `boneyard` launcher are completely optional.
+
 ---
 
 ## 🎾 Usage
@@ -110,7 +114,7 @@ You can also sniff out scents directly from the terminal:
 Running `./boneyard --help` provides the following reference:
 
 ```text
-🐾 BoneYARD v1.0.2 (Yappy Archive and Retrieval Database)
+🐾 BoneYARD v1.0.3 (Yappy Archive and Retrieval Database)
 A powerful, interactive TUI system for burying and fetching bones using JSON.
 
 USAGE:
@@ -141,6 +145,7 @@ MAIN FEATURES:
   Fetch Bones         Filter by scent, bone name (contains), or kennel.
   Show Pack Stats     View scent frequency, kennel counts, and recent activity.
   Switch Yard         Open a different JSON database file (bones are not moved).
+  Rebuild Doghouse    Install the latest version from GitHub (Update Available!).
   Incinerate Yard     Permanently wipe the yard with high-security 
                       phrase confirmation and fuzzy-match recovery.
 
@@ -165,7 +170,7 @@ EXAMPLES:
   BoneYARD.sh --pager safe
 
 ENVIRONMENT:
-  Requires: jq, ranger, gum, shuf, file
+  Requires: jq, ranger, gum, shuf, file, curl, git
   Optional: play (from sox) for menu audio feedback.
 
 Copyright (c) 2025-2026 Pup Tony under GPLv3.

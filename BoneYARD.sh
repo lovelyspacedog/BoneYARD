@@ -10,14 +10,14 @@
 set -euo pipefail
 
 # Global Variables
-SOFTWARE_VERSION="1.0.2"
+SOFTWARE_VERSION="1.0.3"
 # This is the version of the database schema. 
 # Backwards compatibility is maintained within the same major version (X.0.0).
 # Software will refuse to run if the major version differs, or if the database 
 # version is newer than the software version.
 # BoneYARD (Yappy Archive and Retrieval Database)
 DATABASE_VERSION="$SOFTWARE_VERSION" 
-
+REMOTE_VERSION=""
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 DATABASE_FILE="$SCRIPT_DIR/boneyard.json"
 DIR_CACHE_FILE="/tmp/boneyard_dirs.txt"
@@ -123,6 +123,7 @@ MAIN FEATURES:
   Fetch Bones         Filter by scent, bone name (contains), or kennel.
   Show Pack Stats     View scent frequency, kennel counts, and recent activity.
   Switch Yard         Open a different JSON database file (bones are not moved).
+  Rebuild Doghouse    Install the latest version from GitHub (Update Available!).
   Incinerate Yard     Permanently wipe the yard with high-security 
                       phrase confirmation and fuzzy-match recovery.
 
@@ -147,7 +148,7 @@ EXAMPLES:
   $(basename "$0") --pager safe
 
 ENVIRONMENT:
-  Requires: jq, ranger, gum, shuf, file
+  Requires: jq, ranger, gum, shuf, file, curl, git
   Optional: play (from sox) for menu audio feedback.
 
 Copyright (c) 2025$([[ $(date +%Y) != "2025" ]] && echo "-$(date +%Y)") Pup Tony under GPLv3.
@@ -295,7 +296,7 @@ parse_arguments() {
 # Check if dependencies are installed
 check_dependencies() {
     local missing_deps=()
-    for dep in jq ranger gum shuf file; do
+    for dep in jq ranger gum shuf file curl git; do
         if ! command -v "$dep" &> /dev/null; then
             missing_deps+=("$dep")
         fi
@@ -394,6 +395,134 @@ version_compare() {
         if ((10#${ver1[i]} < 10#${ver2[i]})); then return 2; fi
     done
     return 0
+}
+
+# Fetch the latest version from the remote repository
+grab_remote_version() {
+    local remote_file="https://raw.githubusercontent.com/lovelyspacedog/BoneYARD/main/BoneYARD.sh"
+    local temp_file
+    temp_file=$(mktemp /tmp/boneyard_ver_XXXXXX)
+    
+    if curl -s --connect-timeout 2 "$remote_file" -o "$temp_file"; then
+        local remote_v
+        remote_v=$(grep -m 1 'SOFTWARE_VERSION=' "$temp_file" | cut -d'"' -f2)
+        echo "$remote_v" > "/tmp/boneyard_remote_version"
+    fi
+    rm -f "$temp_file"
+}
+
+# Perform the update handoff
+perform_update() {
+    local remote_v="$1"
+    local update_dir="$SCRIPT_DIR"
+    
+    clear
+    gum style --foreground 212 --border double --padding "1 2" "🚀 BoneYARD Update Center"
+    echo "🐾 A new doghouse has been built! BoneYARD $remote_v is available."
+    echo "The pack will move into the kennel at: $update_dir"
+    echo ""
+    
+    if ! gum confirm "Would you like to fetch the new doghouse now?"; then
+        echo "Barking up the wrong tree? No update performed."
+        pause
+        return 0
+    fi
+
+    echo "Fetching the new yard files..."
+    local download_dir="/tmp/boneyard-update-$(date +%s)"
+    
+    if ! git clone --depth 1 https://github.com/lovelyspacedog/BoneYARD.git "$download_dir" &>/dev/null; then
+        echo "Error: Failed to fetch the new yard files. Check your connection."
+        rm -rf "$download_dir"
+        pause
+        return 1
+    fi
+
+    # Safety Check: Check for clutter in the script directory
+    local project_files=("BoneYARD.sh" "boneyard" "boneyard.json" "LICENSE" "README.md" "CHANGELOG.md" "wordlist.txt" ".gitignore")
+    local foreign_count=0
+    for f in "$update_dir"/*; do
+        [[ -d "$f" ]] && continue # Skip directories
+        local fname=$(basename "$f")
+        local is_proj=false
+        for p in "${project_files[@]}"; do
+            if [[ "$fname" == "$p" ]]; then is_proj=true; break; fi
+        done
+        [[ "$is_proj" == "false" ]] && ((foreign_count++))
+    done
+
+    local update_mode="full"
+    if (( foreign_count > 2 )); then
+        echo ""
+        gum style --foreground 208 "⚠️  CLUTTER WARNING: This directory contains $foreign_count non-project files."
+        echo "It looks like you might have saved BoneYARD in a shared folder (like Downloads)."
+        echo ""
+        if gum confirm "Would you like to perform a Minimal Update? (Copies ONLY BoneYARD.sh to avoid clutter)"; then
+            update_mode="minimal"
+        fi
+    fi
+
+    # Generate a script in /tmp that handles the move
+    local updater_script
+    updater_script=$(mktemp /tmp/boneyard_updater_XXXXXX.sh)
+    
+    cat <<EOF > "$updater_script"
+#!/usr/bin/env bash
+# BoneYARD Automatic Updater Script
+
+TARGET_DIR="$update_dir"
+SOURCE_DIR="$download_dir"
+UPDATE_MODE="$update_mode"
+
+echo "Applying the new coat of paint to the kennel..."
+sleep 1
+
+# Explicit check for boneyard.json to ensure buried treasures are safe
+if [[ "\$UPDATE_MODE" == "minimal" ]]; then
+    echo "Minimal Update: Only moving BoneYARD.sh..."
+    if cp -rf "\$SOURCE_DIR/BoneYARD.sh" "\$TARGET_DIR/"; then
+        echo "  [Updated] BoneYARD.sh"
+    else
+        echo "  [Error] Failed to update BoneYARD.sh"
+        exit 1
+    fi
+else
+    for file in "\$SOURCE_DIR"/*; do
+        filename=\$(basename "\$file")
+        
+        # Never overwrite the database file
+        if [[ "\$filename" == "boneyard.json" ]]; then
+            echo "  [Skipped] \$filename (Your database is safe)"
+            continue
+        fi
+        
+        # Overwrite the rest of the software files
+        if cp -rf "\$file" "\$TARGET_DIR/"; then
+            echo "  [Updated] \$filename"
+        else
+            echo "  [Error] Failed to update \$filename"
+            exit 1
+        fi
+    done
+fi
+
+echo ""
+echo "✓ The move is complete! The kennel is now at version $remote_v."
+echo "Cleaning up the loose fur..."
+rm -rf "\$SOURCE_DIR"
+rm -- "\$0"
+
+echo "Relaunching BoneYARD..."
+sleep 1
+clear
+exec "\$TARGET_DIR/BoneYARD.sh"
+EOF
+
+    chmod +x "$updater_script"
+    
+    echo "Starting the handoff... Woof!"
+    # Execute the updater and replace the current process
+    exec "$updater_script"
 }
 
 # Check if the software is compatible with the loaded database
@@ -2040,32 +2169,54 @@ main_menu() {
         play_menu_sound
     fi
     clear
+    
+    # Check if a new version was found by the background process
+    if [[ -f "/tmp/boneyard_remote_version" ]]; then
+        REMOTE_VERSION=$(cat "/tmp/boneyard_remote_version")
+    fi
+
+    local update_badge=""
+    local res=0
+    if [[ -n "$REMOTE_VERSION" ]]; then
+        version_compare "$SOFTWARE_VERSION" "$REMOTE_VERSION" || res=$?
+        if [[ $res -eq 2 ]]; then
+            update_badge=" [🚀 UPDATE AVAILABLE: $REMOTE_VERSION]"
+        fi
+    fi
+
     gum style \
         --foreground 212 --border-foreground 212 --border double \
-        --align center --width 60 --margin "1 2" --padding "1 2" \
-        "BoneYARD $SOFTWARE_VERSION" "Yappy Archive and Retrieval Database" \
+        --align center --width 70 --margin "1 2" --padding "1 2" \
+        "BoneYARD $SOFTWARE_VERSION$update_badge" "Yappy Archive and Retrieval Database" \
         "Database: $DATABASE_FILE"
 
+    local choice_list=()
+    [[ -n "$update_badge" ]] && choice_list+=("🚀 Rebuild Doghouse (New Update Available!)")
+    choice_list+=(
+        "🦴 Bury New Bone"
+        "🐕 Bury Entire Litter"
+        "👃 Update Scents (Edit)"
+        "🎾 Fetch Bones (Search)"
+        "🧹 Clean Up the Yard (Remove)"
+        "📊 Pack Stats"
+        "🏘️ Switch Yard"
+        "🌋 Incinerate the Yard"
+        "📜 Kennel Rules (License)"
+        "🚪 Kennel Sleep (Exit)"
+    )
+
     local choice
-    choice=$(gum choose \
-        "🦴 Bury New Bone" \
-        "🐕 Bury Entire Litter" \
-        "👃 Update Scents (Edit)" \
-        "🎾 Fetch Bones (Search)" \
-        "🧹 Clean Up the Yard (Remove)" \
-        "📊 Pack Stats" \
-        "🏘️ Switch Yard" \
-        "🌋 Incinerate the Yard" \
-        "📜 Kennel Rules (License)" \
-        "🚪 Kennel Sleep (Exit)" || true)
+    choice=$(printf "%s\n" "${choice_list[@]}" | gum choose --height 15 || true)
     
     if [[ -z "$choice" ]]; then
         double_bark_sfx
+        rm -f "/tmp/boneyard_remote_version"
         typewrite "$(printf "%s\n" "${goodbye_text[@]}" | shuf -n 1)"
         exit 0
     fi
 
     case $choice in
+        "🚀 Rebuild Doghouse (New Update Available!)") perform_update "$REMOTE_VERSION";;
         "🦴 Bury New Bone") add_file;;
         "🐕 Bury Entire Litter") tag_entire_directory;;
         "👃 Update Scents (Edit)") edit_tags;;
@@ -2077,6 +2228,7 @@ main_menu() {
         "📜 Kennel Rules (License)") read_license;;
         "🚪 Kennel Sleep (Exit)") 
             double_bark_sfx
+            rm -f "/tmp/boneyard_remote_version"
             typewrite "$(printf "%s\n" "${goodbye_text[@]}" | shuf -n 1)"
             exit 0
             ;;
@@ -2088,6 +2240,11 @@ main_menu() {
 main() {
     parse_arguments "$@"
     check_dependencies
+    
+    # Cleanup stale update info and check for updates
+    rm -f "/tmp/boneyard_remote_version"
+    grab_remote_version
+    
     check_compatibility
     init_database
     update_dir_cache

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.3] - 2026-01-13
+
+### Added
+- **🚀 Rebuild Doghouse**: Integrated updater with automatic background version check and one-click relaunch.
+  - Added a clutter check that warns if BoneYARD is installed in a shared folder (like Downloads).
+  - Added a "Minimal Update" option to only copy `BoneYARD.sh` to prevent directory clutter.
+- **🛡️ New Dependencies**: Added `curl` and `git` to mandatory requirements for update functionality.
+
+### Changed
+- **🔔 Dynamic Update Badge**: Main menu now displays a `[🚀 UPDATE AVAILABLE]` badge when a new version is detected.
+- **🕒 Background Check**: The software now performs a non-blocking version check on launch.
+
 ## [1.0.2] - 2026-01-13
 
 ### Added

@@ -5,6 +5,7 @@ boneyard.json
 boneyard_buffer.json
 boneyard_dirs.txt
 *.tmp
+*.testing*
 
 # VS Code settings
 .vscode/
