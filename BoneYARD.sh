@@ -445,6 +445,9 @@ perform_update() {
     # Safety Check: Check for clutter in the script directory
     local project_files=("BoneYARD.sh" "boneyard" "boneyard.json" "LICENSE" "README.md" "CHANGELOG.md" "wordlist.txt" ".gitignore")
     local foreign_count=0
+    
+    # Enable nullglob so an empty directory doesn't return '*'
+    shopt -s nullglob
     for f in "$update_dir"/*; do
         [[ -d "$f" ]] && continue # Skip directories
         local fname=$(basename "$f")
@@ -452,8 +455,11 @@ perform_update() {
         for p in "${project_files[@]}"; do
             if [[ "$fname" == "$p" ]]; then is_proj=true; break; fi
         done
-        [[ "$is_proj" == "false" ]] && ((foreign_count++))
+        if [[ "$is_proj" == "false" ]]; then
+            foreign_count=$((foreign_count + 1))
+        fi
     done
+    shopt -u nullglob
 
     local update_mode="full"
     if (( foreign_count > 2 )); then
