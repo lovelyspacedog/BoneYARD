@@ -22,7 +22,7 @@ BoneYARD uses dumb doggo terminology, such as:
 ## ✨ Main Features
 
 - **🦴 Bury New Bone**: Pick a file using `ranger` and assign searchable scents.
-- **🐕 Bury Entire Litter**: Batch-tag an entire kennel with interactive copy, undo, skip, and "all" functionality. Now features **Smart Tagging** with automatic duplicate detection and in-place scent updates.
+- **🐕 Bury Entire Litter**: Batch-tag an entire kennel with interactive copy, undo, skip, and "all" functionality. Now features **Smart Tagging** (duplicate detection) and a **Session Scents Tracker** that shows running tag frequencies during the batch process.
 - **👃 Update Scents**: Quickly update or add new scents to any bone already in the yard (now also integrated into the bulk tagging process).
 - **🔢 Polished IDs**: All Bone IDs are zero-padded to 4 digits (e.g., `0001`) for a cleaner and more organized UI across all views.
 - **🎾 Fetch Bones**: Highly flexible search system. Filter by scent, bone name, or kennel.
@@ -116,7 +116,7 @@ You can also sniff out scents directly from the terminal:
 Running `./boneyard --help` provides the following reference:
 
 ```text
-🐾 BoneYARD v1.0.5 (Yappy Archive and Retrieval Database)
+🐾 BoneYARD v1.1.1 (Yappy Archive and Retrieval Database)
 A powerful, interactive TUI system for burying and fetching bones using JSON.
 
 USAGE:

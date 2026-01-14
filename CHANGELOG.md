@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.1] - 2026-01-14
+
+### Changed
+- **🎨 UI Refinement**:
+  - Reordered elements in "Bury Entire Litter" view for better readability: Header -> Bone Progress -> Session Scents -> Spacing -> Filename.
+
+## [1.1.0] - 2026-01-14
+
+### Changed
+- **🐾 Multiline Session Tracker**:
+  - The "Session Scents" summary in "Bury Entire Litter" mode now automatically wraps to multiple lines using `fmt` if many different tags are used.
+  - Improved readability by ensuring the session summary stays within a standard width (72 chars).
+
+## [1.0.7] - 2026-01-14
+
+### Added
+- **🐾 Session Scents Tracker**:
+  - In "Bury Entire Litter" mode, the script now displays a running list of all scents used during the current session, along with a frequency count.
+  - **Enhanced Pooling**: Skipping an already-buried bone (by pressing Enter) now correctly pools its existing scents into the session tracker.
+  - **Smarter Copy**: Skipping a bone now also updates the "last used scents" buffer, allowing you to use `v` (repeat) to copy the skipped bone's scents to the next one.
+  - Helps maintain consistency and quickly see which tags have already been applied to previous bones in the current folder.
+
+## [1.0.6] - 2026-01-14
+
+### Added
+- **🐾 Session Scents Tracker**:
+  - In "Bury Entire Litter" mode, the script now displays a running list of all scents used during the current session, along with a frequency count.
+  - Helps maintain consistency and quickly see which tags have already been applied to previous bones in the current folder.
+
 ## [1.0.5] - 2026-01-14
 
 ### Added

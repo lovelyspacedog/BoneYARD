@@ -10,7 +10,7 @@
 set -euo pipefail
 
 # Global Variables
-SOFTWARE_VERSION="1.0.5"
+SOFTWARE_VERSION="1.1.1"
 # This is the version of the database schema. 
 # Backwards compatibility is maintained within the same major version (X.0.0).
 # Software will refuse to run if the major version differs, or if the database 
@@ -853,24 +853,35 @@ tag_entire_directory() {
         clear
         gum style --foreground 212 --border double --padding "0 1" "🐕 Burying Litter in: $dir_path"
         
-        # Progress and File Info
+        # Progress Info
         gum style --foreground 208 --bold "  🦴 Bone $((i + 1)) of $total_files"
+
+        # Session Tag Summary
+        local session_tag_summary
+        session_tag_summary=$(jq -r 'map(.tags[]) | group_by(.) | map({key: .[0], value: length}) | from_entries | to_entries | sort_by(-.value) | map("\(.key)(\(.value))") | join(", ")' "$buffered_json_file" 2>/dev/null || echo "")
+        if [[ -n "$session_tag_summary" ]]; then
+            local wrapped_summary
+            wrapped_summary=$(echo "🐾 Session Scents: $session_tag_summary" | fmt -w 72)
+            gum style --foreground 208 --italic --margin "0 2" "$wrapped_summary"
+        fi
+        
+        echo ""
         gum style --foreground 255 --margin "0 2" "  $file_name"
         
         # Check for existing entry
         local existing_data
         existing_data=$(jq -c --arg path "$dir_path" --arg name "$file_name" \
-            '.files[] | select(.path == $path and .name == $name) | {id: .unique_id, tags: (.tags | join(", "))}' "$DATABASE_FILE" | head -n 1)
+            '.files[] | select(.path == $path and .name == $name) | {id: .unique_id, tags: .tags}' "$DATABASE_FILE" | head -n 1)
 
         local is_existing=false
         local existing_id=""
-        local existing_tags=""
+        local existing_tags_json="[]"
         if [[ -n "$existing_data" ]]; then
             is_existing=true
             existing_id=$(echo "$existing_data" | jq -r '.id')
-            existing_tags=$(echo "$existing_data" | jq -r '.tags')
+            existing_tags_json=$(echo "$existing_data" | jq -c '.tags')
             gum style --foreground 196 --bold --margin "0 2" "  ⚠️  This bone is already buried!"
-            gum style --foreground 212 --margin "0 2" "  👃 Current scents: $existing_tags"
+            gum style --foreground 212 --margin "0 2" "  👃 Current scents: $(echo "$existing_tags_json" | jq -r 'join(", ")')"
         fi
 
         if [[ -n "$last_tags_string" ]]; then
@@ -898,7 +909,22 @@ tag_entire_directory() {
         # Handle keywords and empty input
         if [[ -z "$tags_input" ]]; then
             if [[ "$is_existing" == "true" ]]; then
-                # Skip this file
+                # Skip this file but pool its existing tags into the session summary
+                local skip_entry
+                skip_entry=$(jq -n \
+                    --arg name "$file_name" \
+                    --arg path "$dir_path" \
+                    --argjson tags "$existing_tags_json" \
+                    --argjson id "$existing_id" \
+                    --argjson is_skip true \
+                    '{name: $name, path: $path, tags: $tags, unique_id: $id, is_skip: $is_skip}')
+                jq --argjson entry "$skip_entry" '. += [$entry]' "$buffered_json_file" > "$buffered_json_file.tmp"
+                mv "$buffered_json_file.tmp" "$buffered_json_file"
+                
+                # Update last used tags so they can be copied to the next file
+                last_tags_json="$existing_tags_json"
+                last_tags_string=$(echo "$existing_tags_json" | jq -r 'join(" ")')
+                
                 i=$((i + 1))
                 continue
             else
@@ -1068,45 +1094,45 @@ tag_entire_directory() {
         i=$((i + 1))
     done
     
-    local total_buffered=$(jq '. | length' "$buffered_json_file")
-    if [[ $total_buffered -gt 0 ]]; then
-        local new_count=$(jq '[.[] | select(.is_update != true)] | length' "$buffered_json_file")
-        local update_count=$(jq '[.[] | select(.is_update == true)] | length' "$buffered_json_file")
-        
-        echo ""
-        [[ $new_count -gt 0 ]] && echo "Burying $new_count NEW bones."
-        [[ $update_count -gt 0 ]] && echo "Updating $update_count existing bones."
-        
-        if gum confirm "Save these changes to the BoneYARD?"; then
-            # 1. Apply updates to existing files
-            if [[ $update_count -gt 0 ]]; then
-                while IFS= read -r update; do
-                    local id=$(echo "$update" | jq -r '.unique_id')
-                    local tags=$(echo "$update" | jq -c '.tags')
-                    local ts=$(echo "$update" | jq -r '.modified_timestamp')
-                    jq --argjson id "$id" --argjson tags "$tags" --argjson ts "$ts" \
-                        '(.files[] | select(.unique_id == $id) | .tags) = $tags | 
-                         (.files[] | select(.unique_id == $id) | .modified_timestamp) = $ts' \
-                        "$DATABASE_FILE" > "$DATABASE_FILE.tmp"
-                    mv "$DATABASE_FILE.tmp" "$DATABASE_FILE"
-                done < <(jq -c '.[] | select(.is_update == true)' "$buffered_json_file")
-            fi
-
-            # 2. Append new bones
-            if [[ $new_count -gt 0 ]]; then
-                # Assign real unique IDs now to avoid collisions
-                local current_max_id=$(jq '[.files[].unique_id] | max // 0' "$DATABASE_FILE")
-                
-                # Map over buffered entries to assign correct IDs and remove temporary fields
-                jq --argjson start_id "$current_max_id" \
-                   '[.[] | select(.is_update != true)] | to_entries | map(.value | del(.is_update) + {unique_id: ($start_id + .key + 1)})' \
-                   "$buffered_json_file" > "$buffered_json_file.tmp"
-                
-                # Append to database
-                jq --argjson new_files "$(cat "$buffered_json_file.tmp")" \
-                   '.files += $new_files' "$DATABASE_FILE" > "$DATABASE_FILE.tmp"
-                mv "$DATABASE_FILE.tmp" "$DATABASE_FILE"
-            fi
+     local total_buffered=$(jq '. | length' "$buffered_json_file")
+     if [[ $total_buffered -gt 0 ]]; then
+         local new_count=$(jq '[.[] | select(.is_update != true and .is_skip != true)] | length' "$buffered_json_file")
+         local update_count=$(jq '[.[] | select(.is_update == true)] | length' "$buffered_json_file")
+         
+         echo ""
+         [[ $new_count -gt 0 ]] && echo "Burying $new_count NEW bones."
+         [[ $update_count -gt 0 ]] && echo "Updating $update_count existing bones."
+         
+         if gum confirm "Save these changes to the BoneYARD?"; then
+             # 1. Apply updates to existing files
+             if [[ $update_count -gt 0 ]]; then
+                 while IFS= read -r update; do
+                     local id=$(echo "$update" | jq -r '.unique_id')
+                     local tags=$(echo "$update" | jq -c '.tags')
+                     local ts=$(echo "$update" | jq -r '.modified_timestamp')
+                     jq --argjson id "$id" --argjson tags "$tags" --argjson ts "$ts" \
+                         '(.files[] | select(.unique_id == $id) | .tags) = $tags | 
+                          (.files[] | select(.unique_id == $id) | .modified_timestamp) = $ts' \
+                         "$DATABASE_FILE" > "$DATABASE_FILE.tmp"
+                     mv "$DATABASE_FILE.tmp" "$DATABASE_FILE"
+                 done < <(jq -c '.[] | select(.is_update == true)' "$buffered_json_file")
+             fi
+ 
+             # 2. Append new bones
+             if [[ $new_count -gt 0 ]]; then
+                 # Assign real unique IDs now to avoid collisions
+                 local current_max_id=$(jq '[.files[].unique_id] | max // 0' "$DATABASE_FILE")
+                 
+                 # Map over buffered entries to assign correct IDs and remove temporary fields
+                 jq --argjson start_id "$current_max_id" \
+                    '[.[] | select(.is_update != true and .is_skip != true)] | to_entries | map(.value | del(.is_update) | del(.is_skip) + {unique_id: ($start_id + .key + 1)})' \
+                    "$buffered_json_file" > "$buffered_json_file.tmp"
+                 
+                 # Append to database
+                 jq --argjson new_files "$(cat "$buffered_json_file.tmp")" \
+                    '.files += $new_files' "$DATABASE_FILE" > "$DATABASE_FILE.tmp"
+                 mv "$DATABASE_FILE.tmp" "$DATABASE_FILE"
+             fi
             
             update_dir_cache
             double_bark_sfx
