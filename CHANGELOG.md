@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-01-14
+
+### Added
+- **👜 Doggy Bag Mode**: 
+  - Introduced a non-persistent session mode using `-b` or `--doggy-bag`.
+  - Redirects all writes to a temporary workspace; changes are only "buried" (saved) upon explicit confirmation on exit.
+  - Integrated a "Use a Doggy Bag" option directly into the main menu for easy relaunching.
+- **🏘️ Cache Bones (Snapshots)**:
+  - Overhauled backup/restore into a logical "Cache" system.
+  - **Bury New Snapshot**: Create timestamped yard backups in a default or custom directory.
+  - **Fetch From The Cache**: Restore your yard from a previous snapshot with safety overwriting prompts.
+  - **Paw Through The Cache**: New dedicated view to list and inspect cached snapshots (date, size, name).
+  - **Clean Up the Cache**: Interactive tool to incinerate old snapshots from the cache.
+- **🚨 Health Checks**: 
+  - Automatic database corruption detection on launch using `jq` validation.
+  - Interactive repair tools: "Attempt Repair" (salvages structure) or "Start Fresh" (re-initialization with backup).
+- **🛡️ Connectivity Awareness**: Added `check_github_connectivity` to ensure offline users don't experience hangs during update checks.
+
+### Changed
+- **🎨 UX Lifecycle Reorganization**:
+  - Reordered the main menu by functional lifecycle: Retrieval -> Acquisition -> Maintenance -> Safety -> System.
+  - Consistently updated emojis and terminology (Bones for files, Yards for databases).
+- **⚙️ Compatibility Logic**:
+  - If a database is newer than the software, BoneYARD now offers to automatically update the software to a compatible version from GitHub.
+  - Tightened JSON validity checks across all CLI and TUI entry points using `jq -e`.
+
+### Fixed
+- Improved robustness of timezone offset handling in corrupted database scenarios.
+- Standardized "Back To Main Menu" navigation across all sub-menus.
+
 ## [1.1.1] - 2026-01-14
 
 ### Changed

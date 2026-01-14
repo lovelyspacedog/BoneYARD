@@ -21,16 +21,19 @@ BoneYARD uses dumb doggo terminology, such as:
 
 ## ✨ Main Features
 
+- **🎾 Fetch Bones**: Highly flexible search system. Filter by scent, bone name, or kennel. (Now #1 priority in the main menu).
 - **🦴 Bury New Bone**: Pick a file using `ranger` and assign searchable scents.
-- **🐕 Bury Entire Litter**: Batch-tag an entire kennel with interactive copy, undo, skip, and "all" functionality. Now features **Smart Tagging** (duplicate detection) and a **Session Scents Tracker** that shows running tag frequencies during the batch process.
-- **👃 Update Scents**: Quickly update or add new scents to any bone already in the yard (now also integrated into the bulk tagging process).
-- **🔢 Polished IDs**: All Bone IDs are zero-padded to 4 digits (e.g., `0001`) for a cleaner and more organized UI across all views.
-- **🎾 Fetch Bones**: Highly flexible search system. Filter by scent, bone name, or kennel.
-- **🦴 Organize Bones**: Batch-organize your files into a new folder. Files are renamed using their top 5 most used scents and can be sorted into subdirectories based on their primary scent.
+- **🐕 Bury Entire Litter**: Batch-tag an entire kennel with interactive copy, undo, skip, and "all" functionality. Now features **Smart Tagging** (duplicate detection) and a **Session Scents Tracker**.
+- **👃 Update Scents**: Quickly update or add new scents to any bone already in the yard.
+- **🦴 Organize Bones**: Batch-organize your files into a new folder based on scent frequency.
+- **🧹 Clean Up the Yard**: Remove bones or entire kennels from your database.
+- **🏘️ Switch Yard**: Move the pack to a different JSON database file.
+- **🐾 Cache Bones (Snapshots)**: New management suite for yard backups. Bury snapshots, fetch from the cache, paw through them, or clean them up.
+- **👜 Doggy Bag Mode**: A non-persistent session mode. Make changes safely and only "bury" them in the yard when you exit.
 - **📊 Pack Stats**: View comprehensive statistics, including scent frequency and recent burial activity.
-- **🏘️ Switch Yard**: Move the pack to a different JSON database file. (Note: This simply opens the selected yard; bones are not transferred between files.)
-- **🚀 Rebuild Doghouse**: Automatic background version check with one-click update and relaunch. Includes a "clutter check" to protect shared folders (like Downloads) by offering a Minimal Update (copies ONLY `BoneYARD.sh`).
-- **🖼️ Bone Previews**: Automatic image and video previews (via thumbnails) for Kitty terminal users.
+- **🚀 Rebuild Doghouse**: Automatic background version check with one-click update. Now includes connectivity awareness to prevent offline hangs.
+- **🖼️ Bone Previews**: Automatic image and video previews for Kitty terminal users.
+- **🚨 Health Checks**: Automatic corruption detection and interactive repair tools on launch.
 - **🌋 Incinerate the Yard**: A high-security database wipe featuring a 12-word pass-phrase confirmation.
 - **📜 Kennel Rules & Changelog**: Integrated viewer for the GPLv3 license and project history.
 
@@ -116,7 +119,7 @@ You can also sniff out scents directly from the terminal:
 Running `./boneyard --help` provides the following reference:
 
 ```text
-🐾 BoneYARD v1.1.1 (Yappy Archive and Retrieval Database)
+🐾 BoneYARD v1.2.0 (Yappy Archive and Retrieval Database)
 A powerful, interactive TUI system for burying and fetching bones using JSON.
 
 USAGE:
@@ -125,6 +128,8 @@ USAGE:
 OPTIONS:
   -d, --database FILE    Specify a custom BoneYARD JSON file.
                          Defaults to: boneyard.json
+  -b, --doggy-bag        Enable "Doggy Bag" mode. No changes are written to the 
+                         main database until you exit the TUI.
   -t, --tags FILE        Output comma-delimited scents for a specific bone.
                          Accepts full path or just a bone name.
                          Exit codes: 0=found, 1=not found, N=match count.
@@ -140,14 +145,17 @@ OPTIONS:
   -h, -?, --help         Show this comprehensive help message.
 
 MAIN FEATURES:
+  Fetch Bones         Filter by scent, bone name (contains), or kennel.
   Bury New Bone       Pick a bone using ranger and assign searchable scents.
   Bury Entire Litter  Batch-bury an entire kennel with interactive 
                       copy/undo/skip/all functionality.
   Update Scents       Quickly update scents for any bone in the yard.
-  Fetch Bones         Filter by scent, bone name (contains), or kennel.
   Organize Bones      Batch-move/rename bones based on scent frequency.
-  Show Pack Stats     View scent frequency, kennel counts, and recent activity.
+  Clean Up the Yard   Remove specific bones or entire kennels from the yard.
   Switch Yard         Open a different JSON database file (bones are not moved).
+  Cache Bones         Snapshot suite: bury, fetch, paw through, or clean up.
+  Doggy Bag Mode      Run a non-persistent session with save-on-exit safety.
+  Show Pack Stats     View scent frequency, kennel counts, and recent activity.
   Rebuild Doghouse    Install the latest version from GitHub (Update Available!).
   Incinerate Yard     Permanently wipe the yard with high-security 
                       phrase confirmation and fuzzy-match recovery.
@@ -179,6 +187,9 @@ ENVIRONMENT:
 
 Copyright (c) 2025-2026 Pup Tony under GPLv3.
 ```
+
+## 🎒 New in v1.2.0: Doggy Bag Mode
+You can now run BoneYARD in "Doggy Bag" mode using the `-b` flag. This allows you to explore, tag, and modify your yard without committing anything to disk until you are finished. Upon exit, you'll be prompted to either "Bury" the changes (save them) or "Abandon the scent" (discard them). This is perfect for batch processing large litters where you might want to double-check your work before making it permanent.
 
 ---
 
