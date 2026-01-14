@@ -25,12 +25,13 @@ BoneYARD uses dumb doggo terminology, such as:
 - **🐕 Bury Entire Litter**: Batch-tag an entire kennel with interactive copy, undo, skip, and "all" functionality.
 - **👃 Update Scents**: Quickly update or add new scents to any bone already in the yard.
 - **🎾 Fetch Bones**: Highly flexible search system. Filter by scent, bone name, or kennel.
+- **🦴 Organize Bones**: Batch-organize your files into a new folder. Files are renamed using their top 5 most used scents and can be sorted into subdirectories based on their primary scent.
 - **📊 Pack Stats**: View comprehensive statistics, including scent frequency and recent burial activity.
 - **🏘️ Switch Yard**: Move the pack to a different JSON database file. (Note: This simply opens the selected yard; bones are not transferred between files.)
 - **🚀 Rebuild Doghouse**: Automatic background version check with one-click update and relaunch. Includes a "clutter check" to protect shared folders (like Downloads) by offering a Minimal Update (copies ONLY `BoneYARD.sh`).
 - **🖼️ Bone Previews**: Automatic image and video previews (via thumbnails) for Kitty terminal users.
 - **🌋 Incinerate the Yard**: A high-security database wipe featuring a 12-word pass-phrase confirmation.
-- **📜 Kennel Rules**: Integrated viewer for the GPLv3 license.
+- **📜 Kennel Rules & Changelog**: Integrated viewer for the GPLv3 license and project history.
 
 ---
 
@@ -114,7 +115,7 @@ You can also sniff out scents directly from the terminal:
 Running `./boneyard --help` provides the following reference:
 
 ```text
-🐾 BoneYARD v1.0.3 (Yappy Archive and Retrieval Database)
+🐾 BoneYARD v1.0.4 (Yappy Archive and Retrieval Database)
 A powerful, interactive TUI system for burying and fetching bones using JSON.
 
 USAGE:
@@ -143,11 +144,13 @@ MAIN FEATURES:
                       copy/undo/skip/all functionality.
   Update Scents       Quickly update scents for any bone in the yard.
   Fetch Bones         Filter by scent, bone name (contains), or kennel.
+  Organize Bones      Batch-move/rename bones based on scent frequency.
   Show Pack Stats     View scent frequency, kennel counts, and recent activity.
   Switch Yard         Open a different JSON database file (bones are not moved).
   Rebuild Doghouse    Install the latest version from GitHub (Update Available!).
   Incinerate Yard     Permanently wipe the yard with high-security 
                       phrase confirmation and fuzzy-match recovery.
+  Kennel Rules        View the license and project history (Changelog).
 
 BONE PREVIEWS:
   Users in the Kitty terminal will see automatic previews of images 

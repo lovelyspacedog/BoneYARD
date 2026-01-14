@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.4] - 2026-01-13
+
+### Fixed
+- **🛠️ Robust Updater**:
+  - Fixed a crash in the clutter check logic caused by Bash arithmetic exit codes when `set -e` is active.
+  - Added `shopt -s nullglob` to correctly handle empty directories during the update safety check.
+  - Improved `git clone` error reporting by allowing standard error to be visible to the user.
+  - Added a return to the main menu after update attempts to ensure consistent script flow.
+
 ## [1.0.3] - 2026-01-13
 
 ### Added

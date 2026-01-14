@@ -10,7 +10,7 @@
 set -euo pipefail
 
 # Global Variables
-SOFTWARE_VERSION="1.0.3"
+SOFTWARE_VERSION="1.0.4"
 # This is the version of the database schema. 
 # Backwards compatibility is maintained within the same major version (X.0.0).
 # Software will refuse to run if the major version differs, or if the database 
@@ -121,11 +121,13 @@ MAIN FEATURES:
                       copy/undo/skip/all functionality.
   Update Scents       Quickly update scents for any bone in the yard.
   Fetch Bones         Filter by scent, bone name (contains), or kennel.
+  Organize Bones      Batch-move/rename bones based on scent frequency.
   Show Pack Stats     View scent frequency, kennel counts, and recent activity.
   Switch Yard         Open a different JSON database file (bones are not moved).
   Rebuild Doghouse    Install the latest version from GitHub (Update Available!).
   Incinerate Yard     Permanently wipe the yard with high-security 
                       phrase confirmation and fuzzy-match recovery.
+  Kennel Rules        View the license and project history (Changelog).
 
 BONE PREVIEWS:
   Users in the Kitty terminal will see automatic previews of images 
@@ -797,6 +799,7 @@ tag_entire_directory() {
     gum style --foreground 212 --border double --padding "1 2" "🐕 Bury Entire Litter"
     echo "Instructions:"
     echo "  1. Navigate INTO the kennel (directory) you want to bury."
+    echo "     (Tip: Press ':' then type 'mkdir <name>' to create a new folder)"
     echo "  2. Press 'q' to select this kennel and exit ranger."
     echo ""
     gum style --foreground 208 "⚠️  Note: Pressing Enter on a bone (file) will try to CHEW (open) it."
@@ -1444,6 +1447,257 @@ directory_search_menu() {
     esac
 }
 
+# Organize bones into a directory
+organize_bones() {
+    play_menu_sound
+    echo ""
+    gum style --foreground 212 --border double --padding "0 1" "🦴 Organize Bones"
+    
+    # 1. Selection
+    local organize_choice
+    organize_choice=$(gum choose --header "Select bones to organize:" \
+        "🏷️ By Scent" \
+        "📝 By Bone Name" \
+        "📁 By Kennel (Directory)" \
+        "📋 All Buried Bones" \
+        "⬅️ Back To Main Menu" || true)
+    
+    if [[ -z "$organize_choice" || "$organize_choice" == "⬅️ Back To Main Menu" ]]; then
+        main_menu
+        return
+    fi
+    
+    local matches_json=""
+    case $organize_choice in
+        "🏷️ By Scent")
+            local search_tag
+            search_tag=$(gum input --placeholder "Enter scent to organize" || true)
+            [[ -z "$search_tag" ]] && { organize_bones; return; }
+            matches_json=$(jq -c --arg tag "$search_tag" '.files[] | select(.tags[] | ascii_downcase == ($tag | ascii_downcase))' "$DATABASE_FILE")
+            ;;
+        "📝 By Bone Name")
+            local search_name
+            search_name=$(gum input --placeholder "Enter bone name to organize (* for all)" || true)
+            [[ "$search_name" == "*" ]] && search_name=""
+            [[ -z "$search_name" ]] && { organize_bones; return; }
+            matches_json=$(jq -c --arg name "$search_name" '.files[] | select(.name | ascii_downcase | contains($name | ascii_downcase))' "$DATABASE_FILE")
+            ;;
+        "📁 By Kennel (Directory)")
+            if [[ ! -s "$DIR_CACHE_FILE" ]]; then
+                echo "No kennels found in database."
+                pause
+                organize_bones
+                return
+            fi
+            local selected_dir
+            selected_dir=$(gum choose --header "Select Kennel to organize:" < "$DIR_CACHE_FILE" || true)
+            [[ -z "$selected_dir" ]] && { organize_bones; return; }
+            matches_json=$(jq -c --arg dir "$selected_dir" '.files[] | select(.path == $dir)' "$DATABASE_FILE")
+            ;;
+        "📋 All Buried Bones")
+            matches_json=$(jq -c '.files[]' "$DATABASE_FILE")
+            ;;
+    esac
+    
+    local count
+    count=$(echo "$matches_json" | jq -s 'length')
+    if [[ "$count" -eq 0 ]]; then
+        echo "No bones found matching selection."
+        pause
+        organize_bones
+        return
+    fi
+    
+    echo "Selected $count bones for organization."
+    echo ""
+    local offset
+    offset=$(jq -r '.["timezone-offset"] // 0' "$DATABASE_FILE")
+    echo "$matches_json" | jq -r --arg offset "$offset" \
+        '((.modified_timestamp + ($offset | tonumber)) | strftime("[%Y-%m-%d %H:%M]")) as $ts |
+         "\($ts) ID: \(.unique_id) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"'
+    echo ""
+    
+    # 2. Destination
+    local temp_dest="/tmp/ranger_organize_dest.txt"
+    rm -f "$temp_dest"
+    
+    echo "Instructions:"
+    echo "  1. Navigate INTO the destination folder."
+    echo "     (Tip: Press ':' then type 'mkdir <name>' to create a new folder)"
+    echo "  2. Press 'q' to select this folder and exit ranger."
+    echo ""
+    echo "Press Enter to start sniffing with ranger..."
+    read -n 1 -s < /dev/tty
+    ranger --choosedir="$temp_dest" "$HOME"
+    
+    if [[ ! -s "$temp_dest" ]]; then
+        echo "No destination selected."
+        pause
+        organize_bones
+        return
+    fi
+    
+    local dest_dir
+    dest_dir=$(realpath "$(cat "$temp_dest")")
+    rm -f "$temp_dest"
+
+    # Confirm selection
+    if ! gum confirm "Organize bones into: $dest_dir?"; then
+        echo "Selection cancelled."
+        organize_bones
+        return
+    fi
+    
+    # 3. Preferences
+    local op_type
+    op_type=$(gum choose --header "Operation type:" "Preserve original files (Copy)" "Delete original files after organizing (Move)" || echo "Copy")
+    
+    local db_sync="none"
+    if [[ "$op_type" == *"Move"* ]]; then
+        db_sync=$(gum choose --header "How to handle database entries?" "Update database with new locations" "Remove entries from database" "Keep original entries (Broken paths)" || echo "Update")
+    fi
+    
+    local structure
+    structure=$(gum choose --header "Directory structure:" "Subdirectories (Based on top scent)" "All in same directory" || echo "Subdirectories")
+    
+    # 4. Processing
+    echo ""
+    echo "Building frequency map..."
+    local freq_map
+    freq_map=$(jq -r '[.files[].tags[]] | group_by(.) | map({(.[0]): length}) | add' "$DATABASE_FILE")
+    
+    local updated_files_json="[]"
+    local removed_ids=()
+    local processed_count=0
+    local success_count=0
+    
+    while read -r file_obj; do
+        local original_name=$(echo "$file_obj" | jq -r '.name')
+        local original_path=$(echo "$file_obj" | jq -r '.path')
+        local original_full_path="$original_path/$original_name"
+        local file_id=$(echo "$file_obj" | jq -r '.unique_id')
+        local tags_json=$(echo "$file_obj" | jq -c '.tags')
+        
+        if [[ ! -f "$original_full_path" ]]; then
+            echo "⚠️  Missing bone: $original_full_path (Skipping)"
+            continue
+        fi
+        
+        # Handle untagged case
+        if [[ "$tags_json" == "[]" ]]; then
+            if gum confirm "Bone '$original_name' has no scents. Add some now?"; then
+                local new_tags_input
+                new_tags_input=$(gum input --placeholder "Enter scents (comma-separated)" || true)
+                if [[ -n "$new_tags_input" ]]; then
+                    IFS=',' read -ra tags_array <<< "$new_tags_input"
+                    tags_json='[]'
+                    for tag in "${tags_array[@]}"; do
+                        tag=$(echo "$tag" | xargs)
+                        [[ -n "$tag" ]] && tags_json=$(echo "$tags_json" | jq --arg tag "$tag" '. += [$tag]')
+                    done
+                else
+                    tags_json='["untagged"]'
+                fi
+            else
+                tags_json='["untagged"]'
+            fi
+        fi
+        
+        # Sort and sanitize tags
+        local sorted_tags
+        sorted_tags=$(echo "$tags_json" | jq -r --argjson freq "$freq_map" '. | sort_by(-$freq[.]) | .[]')
+        
+        local top_scent=$(echo "$sorted_tags" | head -n 1)
+        local top_5_tags=$(echo "$sorted_tags" | head -n 5)
+        
+        # Build sanitized filename
+        local base_filename=""
+        while read -r tag; do
+            # Replace spaces with underscores, omit other special characters except . and _
+            local sanitized=$(echo "$tag" | sed 's/ /_/g' | sed 's/[^a-zA-Z0-9._]//g')
+            [[ -n "$base_filename" ]] && base_filename+=" "
+            base_filename+="$sanitized"
+        done <<< "$top_5_tags"
+        
+        local extension="${original_name##*.}"
+        [[ "$original_name" != *.* ]] && extension=""
+        [[ -n "$extension" ]] && extension=".$extension"
+        
+        local final_filename="$base_filename$extension"
+        local target_subdir="$dest_dir"
+        [[ "$structure" == *"Subdirectories"* ]] && target_subdir="$dest_dir/$(echo "$top_scent" | sed 's/ /_/g' | sed 's/[^a-zA-Z0-9._]//g')"
+        
+        mkdir -p "$target_subdir"
+        
+        # Collision handling
+        local counter=1
+        local check_path="$target_subdir/$final_filename"
+        while [[ -f "$check_path" ]]; do
+            final_filename="$base_filename #$counter$extension"
+            check_path="$target_subdir/$final_filename"
+            counter=$((counter + 1))
+        done
+        
+        # Perform action
+        local success=false
+        if [[ "$op_type" == *"Copy"* ]]; then
+            if cp -rf "$original_full_path" "$check_path"; then success=true; fi
+        else
+            if mv "$original_full_path" "$check_path"; then success=true; fi
+        fi
+        
+        if [[ "$success" == "true" ]]; then
+            echo "✅ Organized: $original_name -> $final_filename"
+            success_count=$((success_count + 1))
+            
+            # DB Sync Prep
+            if [[ "$db_sync" == *"Update"* ]]; then
+                local new_entry=$(echo "$file_obj" | jq -c --arg name "$final_filename" --arg path "$target_subdir" --argjson tags "$tags_json" \
+                    '.name = $name | .path = $path | .tags = $tags')
+                updated_files_json=$(echo "$updated_files_json" | jq --argjson entry "$new_entry" '. += [$entry]')
+            elif [[ "$db_sync" == *"Remove"* ]]; then
+                removed_ids+=("$file_id")
+            fi
+        else
+            echo "❌ Failed to organize: $original_name"
+        fi
+        
+        processed_count=$((processed_count + 1))
+    done < <(echo "$matches_json")
+    
+    # 5. DB Finalization
+    if [[ "$db_sync" == *"Update"* && "$success_count" -gt 0 ]]; then
+        echo "Updating database records..."
+        # This is a bit complex: we need to replace existing entries with updated ones
+        # For simplicity, we'll remove old ones and append new ones
+        local tmp_db=$(mktemp)
+        jq --argjson updates "$updated_files_json" '
+            .files |= map(
+                . as $old | 
+                ($updates[] | select(.unique_id == $old.unique_id)) // $old
+            )' "$DATABASE_FILE" > "$tmp_db"
+        mv "$tmp_db" "$DATABASE_FILE"
+        update_dir_cache
+    elif [[ "$db_sync" == *"Remove"* && ${#removed_ids[@]} -gt 0 ]]; then
+        echo "Removing database records..."
+        local ids_json=$(printf '%s\n' "${removed_ids[@]}" | jq -R . | jq -s .)
+        local tmp_db=$(mktemp)
+        jq --argjson ids "$ids_json" '.files |= map(select(.unique_id as $id | ($ids | index($id) | not)))' "$DATABASE_FILE" > "$tmp_db"
+        mv "$tmp_db" "$DATABASE_FILE"
+        update_dir_cache
+    fi
+    
+    echo ""
+    gum style --foreground 212 "✓ Organization complete! $success_count/$processed_count bones moved/copied."
+    
+    if gum confirm "Would you like to open the destination folder?"; then
+        (xdg-open "$dest_dir" > /dev/null 2>&1 &)
+    fi
+
+    pause
+    main_menu
+}
+
 # Remove a file or directory from the database
 remove_file() {
     play_menu_sound
@@ -1982,14 +2236,19 @@ EOF
     echo ""
     
     local choice
-    choice=$(gum choose "Read More" "Go Back To Main Menu" || echo "Go Back To Main Menu")
+    choice=$(gum choose "📜 Read Full License" "📜 View Changelog" "🐾 Go Back To Main Menu" || echo "🐾 Go Back To Main Menu")
     
-    if [[ "$choice" == "Go Back To Main Menu" ]]; then
+    if [[ "$choice" == "🐾 Go Back To Main Menu" ]]; then
         main_menu
         return
     fi
+
+    if [[ "$choice" == "📜 View Changelog" ]]; then
+        view_changelog
+        return
+    fi
     
-    # Read More logic
+    # Read Full License logic
     local local_license="$SCRIPT_DIR/LICENSE"
     local temp_license="/tmp/gpl_full.txt"
     local pulled=false
@@ -2079,17 +2338,17 @@ EOF
     
     # Pager logic
     if [[ "$FORCED_PAGER" == "safe" ]]; then
-        read_license_safe_pager "$temp_license"
+        boneyard_safe_pager "$temp_license" "LICENSE TEXT"
     elif [[ -n "$FORCED_PAGER" ]]; then
         if command -v "$FORCED_PAGER" &> /dev/null; then
             "$FORCED_PAGER" "$temp_license"
         else
             echo "Error: Forced pager '$FORCED_PAGER' not found. Falling back to default detection."
             sleep 2
-            read_license_auto_pager "$temp_license"
+            boneyard_auto_pager "$temp_license" "LICENSE TEXT"
         fi
     else
-        read_license_auto_pager "$temp_license"
+        boneyard_auto_pager "$temp_license" "LICENSE TEXT"
     fi
     
     rm -f "$temp_license"
@@ -2097,15 +2356,48 @@ EOF
     main_menu
 }
 
+# View the project changelog
+view_changelog() {
+    play_menu_sound
+    clear
+    local changelog_file="$SCRIPT_DIR/CHANGELOG.md"
+    
+    if [[ ! -f "$changelog_file" ]]; then
+        gum style --foreground 196 "❌ Error: CHANGELOG.md not found in $SCRIPT_DIR"
+        pause
+        read_license
+        return
+    fi
+
+    # Pager logic
+    if [[ "$FORCED_PAGER" == "safe" ]]; then
+        boneyard_safe_pager "$changelog_file" "CHANGELOG"
+    elif [[ -n "$FORCED_PAGER" ]]; then
+        if command -v "$FORCED_PAGER" &> /dev/null; then
+            "$FORCED_PAGER" "$changelog_file"
+        else
+            echo "Error: Forced pager '$FORCED_PAGER' not found. Falling back to default detection."
+            sleep 2
+            boneyard_auto_pager "$changelog_file" "CHANGELOG"
+        fi
+    else
+        boneyard_auto_pager "$changelog_file" "CHANGELOG"
+    fi
+    
+    clear
+    read_license
+}
+
 # Safe line-by-line pager
-read_license_safe_pager() {
-    local temp_license="$1"
+boneyard_safe_pager() {
+    local target_file="$1"
+    local header_text="${2:-FILE TEXT}"
     local lines_per_page=10
     local current_page=1
     
     # Calculate total pages
     local total_lines
-    total_lines=$(wc -l < "$temp_license")
+    total_lines=$(wc -l < "$target_file")
     local total_pages=$(( (total_lines + lines_per_page - 1) / lines_per_page ))
     
     while true; do
@@ -2114,7 +2406,7 @@ read_license_safe_pager() {
         local restart=false
         
         # Display header
-        gum style --foreground 250 "=== LICENSE TEXT ==="
+        gum style --foreground 250 "=== $header_text ==="
         echo ""
         
         while IFS= read -r line; do
@@ -2143,13 +2435,13 @@ read_license_safe_pager() {
                         ;;
                 esac
             fi
-        done < "$temp_license"
+        done < "$target_file"
         
         # If we finished reading the file without restarting
         if [[ "$restart" != "true" ]]; then
             echo ""
             echo "----------------------------------------"
-            typewrite "End of license. Press any key to continue..."
+            typewrite "End of $header_text. Press any key to continue..."
             read -n 1 -s < /dev/tty
             return
         fi
@@ -2159,17 +2451,18 @@ read_license_safe_pager() {
     done
 }
 
-# Auto-detect pager for license
-read_license_auto_pager() {
-    local temp_license="$1"
+# Automatic pager detection
+boneyard_auto_pager() {
+    local target_file="$1"
+    local header_text="${2:-FILE TEXT}"
     if command -v nvim &> /dev/null; then
-        nvim --clean -R "$temp_license"
+        nvim --clean -R "$target_file"
     elif command -v nano &> /dev/null; then
-        nano -v "$temp_license" # -v for view mode
+        nano -v "$target_file" # -v for view mode
     elif command -v less &> /dev/null; then
-        less "$temp_license"
+        less "$target_file"
     else
-        read_license_safe_pager "$temp_license"
+        boneyard_safe_pager "$target_file" "$header_text"
     fi
 }
 
@@ -2207,11 +2500,12 @@ main_menu() {
         "🐕 Bury Entire Litter"
         "👃 Update Scents (Edit)"
         "🎾 Fetch Bones (Search)"
+        "🦴 Organize Bones (Batch)"
         "🧹 Clean Up the Yard (Remove)"
         "📊 Pack Stats"
         "🏘️ Switch Yard"
+        "📜 Kennel Rules & Changelog"
         "🌋 Incinerate the Yard"
-        "📜 Kennel Rules (License)"
         "🚪 Kennel Sleep (Exit)"
     )
 
@@ -2234,11 +2528,12 @@ main_menu() {
         "🐕 Bury Entire Litter") tag_entire_directory;;
         "👃 Update Scents (Edit)") edit_tags;;
         "🎾 Fetch Bones (Search)") search_file;;
+        "🦴 Organize Bones (Batch)") organize_bones;;
         "🧹 Clean Up the Yard (Remove)") remove_file;;
         "📊 Pack Stats") show_stats;;
         "🏘️ Switch Yard") switch_yard "$@";;
+        "📜 Kennel Rules & Changelog") read_license;;
         "🌋 Incinerate the Yard") delete_entire_database;;
-        "📜 Kennel Rules (License)") read_license;;
         "🚪 Kennel Sleep (Exit)") 
             double_bark_sfx
             rm -f "/tmp/boneyard_remote_version"
