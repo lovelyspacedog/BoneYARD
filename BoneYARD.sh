@@ -34,7 +34,7 @@ BONEYARD_STANDALONE=${BONEYARD_STANDALONE:-false}
 goodbye_text=()
 
 # Global Variables
-SOFTWARE_VERSION="1.4.1"
+SOFTWARE_VERSION="1.4.2"
 # This is the version of the database schema. 
 # Backwards compatibility is maintained within the same major version (X.0.0).
 # Software will refuse to run if the major version differs, or if the database 
@@ -133,6 +133,11 @@ generate_standalone() {
         return 1
     fi
 
+    # If output is a directory, append the default filename
+    if [[ -d "$output" ]]; then
+        output="$output/BoneYARD-standalone.sh"
+    fi
+
     local temp_output
     temp_output=$(mktemp /tmp/boneyard_standalone_XXXXXX.sh)
 
@@ -169,11 +174,8 @@ generate_standalone() {
         cat "$BONEYARD_MODULE_DIR/pager.sh"
         echo ""
 
-        # Handle goodbye.sh with fallback for standalone builds (before menu.sh)
-        if [[ -f "$BONEYARD_MODULE_DIR/goodbye.sh" ]]; then
-            cat "$BONEYARD_MODULE_DIR/goodbye.sh"
-        else
-            cat << 'EOF'
+        # Use simple fallback goodbye messages for standalone builds (before menu.sh)
+        cat << 'EOF'
 # Fallback goodbye messages for standalone builds (global array)
 goodbye_text=(
     "Woof woof! (Goodbye!)"
@@ -183,7 +185,6 @@ goodbye_text=(
     "Paws for thought!"
 )
 EOF
-        fi
         echo ""
 
         cat "$BONEYARD_MODULE_DIR/menu.sh"

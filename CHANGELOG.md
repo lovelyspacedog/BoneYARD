@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.2] - 2026-01-15
+
+### Fixed
+- **📦 Standalone Script Optimization**:
+  - Reduced standalone script size by 13% (157k → 136k) by using simple fallback goodbye messages instead of embedding the full goodbye.sh module
+  - Simplified standalone builds to focus on core functionality with basic farewell messages
+- **🛠️ Standalone Generation Fixes**:
+  - Fixed `--generate-standalone` command to properly handle directory paths by appending default filename
+  - Ensured generated scripts have correct executable permissions and proper file naming (no random suffixes)
+  - Improved path handling for both file and directory output destinations
+
+### Changed
+- **🐾 Simplified Standalone Builds**: Standalone scripts now use 5 basic goodbye messages instead of the full 300+ message system for better performance and smaller file size
+
 ## [1.4.1] - 2026-01-14
 
 ### Added
