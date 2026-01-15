@@ -338,18 +338,20 @@ delete_entire_database() {
         done < <(LC_ALL=C sed 's/[^a-zA-Z0-9]//g' "$local_wordlist" | LC_ALL=C grep -E '^.{1,9}$' | shuf -n 12 | sed 's/./\U&/')
     else
         # Fallback if dictionary doesn't exist (words max 9 chars)
-        # Scramble word order and randomly capitalize one word to prevent programmable deletion
-        local fallback_words=("Lorem" "Ipsum" "Dolor" "Sit" "Amet" "Lectus" "Semper" "Elit" "Phasellus" "At" "Lorem" "Erat")
+        # Scramble word order and randomly make 12 words ALL UPPERCASE to prevent programmable deletion
+        local fallback_words=("Lorem" "Ipsum" "Dolor" "Sit" "Amet" "Lectus" "Semper" "Elit" "Phasellus" "At" "Magna" "Aliquam" "Ultricies" "Viverra" "Bibendum" "Mollis" "Consectetur" "Adipiscing")
 
-        # Shuffle the words randomly
+        # Shuffle all 18 words and take the first 12
         words=()
+        local shuffled_words=()
         while IFS= read -r word; do
-            words+=("$word")
+            shuffled_words+=("$word")
         done < <(printf '%s\n' "${fallback_words[@]}" | shuf)
 
-        # Randomly make one word ALL UPPERCASE (0-11)
-        local random_idx=$((RANDOM % 12))
-        words[$random_idx]=$(echo "${words[$random_idx]}" | tr '[:lower:]' '[:upper:]')
+        # Take first 12 words and make them ALL UPPERCASE
+        for ((i=0; i<12; i++)); do
+            words+=("$(echo "${shuffled_words[$i]}" | tr '[:lower:]' '[:upper:]')")
+        done
     fi
     
     local line1="${words[0]} ${words[1]} ${words[2]} ${words[3]}"
