@@ -4,6 +4,7 @@ boneyard.json
 # Temporary/cache files
 boneyard_buffer.json
 boneyard_dirs.txt
+boneyard_standalone.sh
 *.tmp
 *.testing*
 
