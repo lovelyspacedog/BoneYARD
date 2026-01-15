@@ -92,6 +92,7 @@ To run BoneYARD, you'll need the following "toys" installed:
 - `VERSION`: Current version for reliable update checking.
 - `boneyard`: A lightweight launcher script.
 - `BoneYARD.sh`: The main launcher that loads the modular scripts.
+- `BoneYARD-standalone.sh`: Auto-generated single-file script (136k) with all modules embedded.
 - `modules/`: Feature modules sourced by `BoneYARD.sh`:
   - `core.sh`: Shared utilities, update logic, database helpers.
   - `cli.sh`: CLI parsing and help output.
@@ -112,7 +113,7 @@ To run BoneYARD, you'll need the following "toys" installed:
 - `CHANGELOG.md`: Detailed history of project changes.
 - `README.md`: The file you are currently reading!
 
-> **Note on Standalone Operation**: BoneYARD now ships as a modular project. Use `--generate-standalone` to build a single-file script for portability. Updates are disabled in the standalone file, so regenerate it when you want new versions.
+> **Note on Standalone Operation**: BoneYARD ships as a modular project for development, but you can generate a portable single-file script using `--generate-standalone`. The standalone version (136k) uses simplified farewell messages for better performance and disables auto-updates. Regenerate it when you want the latest features.
 
 ---
 
@@ -138,7 +139,7 @@ You can also sniff out scents directly from the terminal:
 Running `./boneyard --help` provides the following reference:
 
 ```text
-🐾 BoneYARD v1.4.1 (Yappy Archive and Retrieval Database)
+🐾 BoneYARD v1.4.2 (Yappy Archive and Retrieval Database)
 A powerful, interactive TUI system for burying and fetching bones using JSON.
 
 USAGE:
@@ -212,6 +213,15 @@ ENVIRONMENT:
 
 Copyright (c) 2025-2026 Pup Tony under GPLv3.
 ```
+
+## 🎒 New in v1.4.2: Optimized Standalone Generation
+BoneYARD v1.4.2 introduces significant improvements to standalone script generation:
+- **13% smaller file size** (157k → 136k) by using simplified farewell messages
+- **Fixed directory handling** for `--generate-standalone ~/` commands
+- **Proper file naming** without random suffixes
+- **Guaranteed executable permissions** on generated scripts
+
+Generate a portable version with: `./BoneYARD.sh --generate-standalone`
 
 ## 🎒 New in v1.2.0: Doggy Bag Mode
 You can now run BoneYARD in "Doggy Bag" mode using the `-b` flag. This allows you to explore, tag, and modify your yard without committing anything to disk until you are finished. Upon exit, you'll be prompted to either "Bury" the changes (save them) or "Abandon the scent" (discard them). This is perfect for batch processing large litters where you might want to double-check your work before making it permanent.
