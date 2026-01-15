@@ -7,7 +7,9 @@
 is_low_spec=false
 cpu_cores=$(nproc 2>/dev/null || echo "1")
 total_ram_kb=$(grep -E '^MemTotal:' /proc/meminfo 2>/dev/null | awk '{print $2}' || echo "2097152") # Default to 2GB if can't read
-total_ram_gb=$((total_ram_kb / 1024 / 1024))
+
+# More accurate GB calculation: divide by 1048576 (1024*1024) and round up
+total_ram_gb=$(( (total_ram_kb + 524287) / 1048576 )) # Add half of divisor for rounding
 
 if [[ $cpu_cores -lt 2 || $total_ram_gb -lt 2 ]]; then
     is_low_spec=true
