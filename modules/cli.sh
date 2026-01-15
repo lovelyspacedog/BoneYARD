@@ -9,52 +9,73 @@ USAGE:
   $(basename "$0") [options]
 
 OPTIONS:
-  -d, --database FILE    Specify a custom BoneYARD JSON file.
-                         Defaults to: $SCRIPT_DIR/boneyard.json
-  -b, --doggy-bag        Enable "Doggy Bag" mode. No changes are written to the 
-                         main database until you exit the TUI.
-  -t, --tags FILE        Output comma-delimited scents for a specific bone.
-                         Accepts full path or just a bone name.
-                         Supports boolean operators (AND, OR, NOT).
-                         Exit codes: 0=found, 1=not found, N=match count.
-  --with-dir [use SEP]  When used with --tags, appends kennel components
-                         and the bone name to the output scents.
-                         Optionally use 'use SEP' to set a custom separator 
-                         (e.g., --with-dir use ":") between the kennel branch
-                         and the scents. (Default: comma).
-  --contains             When used with --tags, enables case-insensitive 
-                         "contains" searching instead of exact matching.
-  --pager PAGER          Force a specific pager (nvim, nano, less) for the rules.
-                         Use 'safe' for the built-in 5-line-at-a-time viewer.
+  -d, --database FILE        Specify a custom BoneYARD JSON file.
+                             Defaults to: $SCRIPT_DIR/boneyard.json
+
+  -b, --doggy-bag            Enable "Doggy Bag" mode. No changes are written to
+                             the main database until you exit the TUI.
+
+  -t, --tags FILE            Output comma-delimited scents for a specific bone.
+                             Accepts full path or just a bone name.
+                             Supports boolean operators (AND, OR, NOT).
+                             Exit codes: 0=found, 1=not found, N=match count.
+
+  --with-dir [use SEP]       When used with --tags, appends kennel components
+                             and the bone name to the output scents.
+                             Optionally use 'use SEP' to set a custom separator
+                             (e.g., --with-dir use ":") between the kennel branch
+                             and the scents. (Default: comma).
+
+  --contains                 When used with --tags, enables case-insensitive
+                             "contains" searching instead of exact matching.
+
+  --pager PAGER              Force a specific pager (nvim, nano, less) for the rules.
+                             Use 'safe' for the built-in 5-line-at-a-time viewer.
+
   --generate-standalone [FILE]
-                         Build a single-file BoneYARD script with all modules
-                         embedded. Defaults to: $SCRIPT_DIR/BoneYARD-standalone.sh
-                         Updates are disabled in the generated file.
-  -h, -?, --help         Show this comprehensive help message.
+                             Build a single-file BoneYARD script with all modules
+                             embedded. Defaults to: $SCRIPT_DIR/BoneYARD-standalone.sh
+                             Updates are disabled in the generated file.
+
+  -h, -?, --help             Show this comprehensive help message.
 
 MAIN FEATURES:
-  Fetch Bones         Filter by scent, bone name (contains), kennel, or date.
-                      Scent search supports AND, OR, NOT (e.g. bash AND script).
-  Bury New Bone       Pick a bone using ranger and assign searchable scents.
-  Bury Entire Litter  Batch-bury an entire kennel with interactive 
-                      copy/undo/skip/all functionality.
-  Update Scents       Quickly update scents for any bone in the yard.
-  Organize Bones      Batch-move/rename bones based on scent frequency.
-  Clean Up the Yard   Remove specific bones or entire kennels from the yard.
-  Switch Yard         Open a different JSON database file (bones are not moved).
-  Cache Bones         Snapshot suite: bury, fetch, paw through, or clean up. 
-                      Includes Auto-Snapshot protection.
-  Export Yard         Export the yard to a CSV or HTML file for external use.
-  Doggy Bag Mode      Run a non-persistent session with save-on-exit safety.
-  Show Pack Stats     View scent frequency, kennel counts, and recent activity.
-  Rebuild Doghouse    Install the latest version from GitHub (Update Available!).
-  Incinerate Yard     Permanently wipe the yard with high-security 
-                      phrase confirmation and fuzzy-match recovery.
-  Kennel Rules        View the license and project history (Changelog).
+  🎾 Fetch Bones             Filter by scent, bone name, kennel, or date range.
+                             Scent search supports AND, OR, NOT (e.g., bash AND script).
+
+  🦴 Bury New Bone           Pick a file using ranger and assign searchable scents.
+
+  🐕 Bury Entire Litter      Batch-bury an entire kennel with interactive
+                             copy/undo/skip/all functionality.
+
+  👃 Update Scents           Quickly update scents for any bone in the yard.
+
+  🦴 Organize Bones          Batch-move/rename bones based on scent frequency.
+
+  🧹 Clean Up the Yard       Remove specific bones, entire kennels, or date ranges
+                             from your database.
+
+  🏘️ Switch Yard             Open a different JSON database file (bones are not moved).
+
+  🐾 Cache Bones             Snapshot suite: bury, fetch, paw through, or clean up.
+                             Includes Auto-Snapshot protection.
+
+  📤 Export Yard             Export the yard to a CSV or HTML file for external use.
+
+  👜 Doggy Bag Mode          Run a non-persistent session with save-on-exit safety.
+
+  📊 Show Pack Stats         View scent frequency, kennel counts, and recent activity.
+
+  🚀 Rebuild Doghouse        Install the latest version from GitHub (Update Available!).
+
+  🌋 Incinerate Yard         Permanently wipe the yard with high-security
+                             phrase confirmation and fuzzy-match recovery.
+
+  📜 Kennel Rules            View the license and project history (Changelog).
 
 BONE PREVIEWS:
-  Users in the Kitty terminal will see automatic previews of images 
-  and videos (via thumbnails) during the tagging process.
+  Users in the Kitty terminal will see automatic previews of images and videos
+  (via thumbnails) during the tagging process.
 
 EXAMPLES:
   # Launch interactive TUI (default)
