@@ -263,4 +263,14 @@ if [[ "$(date +%m)" == "12" ]]; then
     # === CHRISTMAS THEMED ===
     goodbye_text+=("Merry Lick-mas!")
     goodbye_text+=("Happy Howl-idays!")
+    goodbye_text+=("Merry Paws-mas!")
+    goodbye_text+=("Have a very woofy Christmas!")
+    goodbye_text+=("Jingle all the way... to the treat jar!")
+    goodbye_text+=("Santa Paws is coming to town!")
+    goodbye_text+=("Hope your holidays are filled with chew toys!")
+    goodbye_text+=("Wishing you a tail-waggingly merry Christmas!")
+    goodbye_text+=("May your Christmas be merry and your bones bright!")
+    goodbye_text+=("Deck the halls with lots of dog treats!")
+    goodbye_text+=("Have a holly jolly Christmas, pup!")
+    goodbye_text+=("Santa's favorite helper says goodbye!")
 fi
