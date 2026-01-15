@@ -177,14 +177,16 @@ build_tag_query_filter() {
 # Fetch the latest version from the remote repository
 grab_remote_version() {
     check_github_connectivity || return 0
-    local remote_file="https://raw.githubusercontent.com/lovelyspacedog/BoneYARD/main/BoneYARD.sh"
+    local remote_file="https://raw.githubusercontent.com/lovelyspacedog/BoneYARD/main/VERSION"
     local temp_file
     temp_file=$(mktemp /tmp/boneyard_ver_XXXXXX)
-    
+
     if curl -s --connect-timeout 2 "$remote_file" -o "$temp_file"; then
         local remote_v
-        remote_v=$(grep -m 1 'SOFTWARE_VERSION=' "$temp_file" | cut -d'"' -f2)
-        echo "$remote_v" > "/tmp/boneyard_remote_version"
+        remote_v=$(cat "$temp_file" | tr -d '\n' | tr -d '\r')
+        if [[ -n "$remote_v" && "$remote_v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "$remote_v" > "/tmp/boneyard_remote_version"
+        fi
     fi
     rm -f "$temp_file"
 }
