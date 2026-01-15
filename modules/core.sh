@@ -262,7 +262,7 @@ perform_update() {
         gum style --foreground 208 "⚠️  CLUTTER WARNING: This directory contains $foreign_count non-project files."
         echo "It looks like you might have saved BoneYARD in a shared folder (like Downloads)."
         echo ""
-        if gum confirm "Would you like to perform a Minimal Update? (Copies BoneYARD.sh and core modules only)"; then
+        if gum confirm "Would you like to perform a Minimal Update? (Copies BoneYARD.sh and modules directory)"; then
             update_mode="minimal"
         fi
     fi
