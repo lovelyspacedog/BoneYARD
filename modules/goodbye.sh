@@ -259,18 +259,58 @@ declare -a goodbye_text=(
     "That's all, folks! Woof!"
 )
 
-if [[ "$(date +%m)" == "12" ]]; then
-    # === CHRISTMAS THEMED ===
-    goodbye_text+=("Merry Lick-mas!")
-    goodbye_text+=("Happy Howl-idays!")
-    goodbye_text+=("Merry Paws-mas!")
-    goodbye_text+=("Have a very woofy Christmas!")
-    goodbye_text+=("Jingle all the way... to the treat jar!")
-    goodbye_text+=("Santa Paws is coming to town!")
-    goodbye_text+=("Hope your holidays are filled with chew toys!")
-    goodbye_text+=("Wishing you a tail-waggingly merry Christmas!")
-    goodbye_text+=("May your Christmas be merry and your bones bright!")
-    goodbye_text+=("Deck the halls with lots of dog treats!")
-    goodbye_text+=("Have a holly jolly Christmas, pup!")
-    goodbye_text+=("Santa's favorite helper says goodbye!")
+if [[ "$(date +%m)" == "11" || "$(date +%m)" == "12" ]]; then
+    # === END-OF-YEAR HOLIDAY THEMED (November-December) ===
+    # Inclusive of Christmas, Hanukkah, Kwanzaa, New Year's, and other winter traditions
+
+    # Christmas & General Holiday
+    goodbye_text+=(
+        "Merry Lick-mas!"
+        "Happy Howl-idays!"
+        "Merry Paws-mas!"
+        "Have a very woofy Christmas!"
+        "Jingle all the way... to the treat jar!"
+        "Santa Paws is coming to town!"
+        "Hope your holidays are filled with chew toys!"
+        "Wishing you a tail-waggingly merry Christmas!"
+        "May your Christmas be merry and your bones bright!"
+        "Deck the halls with lots of dog treats!"
+        "Have a holly jolly Christmas, pup!"
+        "Santa's favorite helper says goodbye!"
+    )
+
+    # Hanukkah (Festival of Lights)
+    goodbye_text+=(
+        "Happy Hanu-pup-kah!"
+        "May your menorah be lit and your dreidel spin!"
+        "Wishing you eight nights of latkes and fun!"
+        "Hanukkah Sameach, my furry friend!"
+    )
+
+    # Kwanzaa (December 26 - January 1)
+    goodbye_text+=(
+        "Habari Gani! (What's the news?) Happy Kwanzaa!"
+        "May your Kwanzaa be filled with unity and joy!"
+        "Celebrating the seven principles with my pack!"
+        "Harambee! (Let's all work together!) Happy Kwanzaa!"
+    )
+
+    # New Year's & Winter Celebrations
+    goodbye_text+=(
+        "Happy New Year! May it be filled with belly rubs!"
+        "Here's to a pawsome new year ahead!"
+        "New Year's resolution: More treats and walks!"
+        "May your new year be merry and your resolutions achievable!"
+        "Happy Solstice! Enjoy the lengthening days!"
+        "Winter blessings and warm snuggles to you!"
+    )
+
+    # General Festive Season
+    goodbye_text+=(
+        "Season's Greetings from your favorite pup!"
+        "May your season be filled with joy and treats!"
+        "Happy Holidays! Stay warm and well-fed!"
+        "Festive wishes from your loyal canine companion!"
+        "May your winter be cozy and your holidays bright!"
+    )
 fi
