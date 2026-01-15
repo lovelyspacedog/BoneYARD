@@ -338,7 +338,18 @@ delete_entire_database() {
         done < <(LC_ALL=C sed 's/[^a-zA-Z0-9]//g' "$local_wordlist" | LC_ALL=C grep -E '^.{1,9}$' | shuf -n 12 | sed 's/./\U&/')
     else
         # Fallback if dictionary doesn't exist (words max 9 chars)
-        words=("Lorem" "Ipsum" "Dolor" "Sit" "Amet" "Lectus" "Semper" "Elit" "Phasellus" "At" "Lorem" "Erat")
+        # Scramble word order and randomly capitalize one word to prevent programmable deletion
+        local fallback_words=("Lorem" "Ipsum" "Dolor" "Sit" "Amet" "Lectus" "Semper" "Elit" "Phasellus" "At" "Lorem" "Erat")
+
+        # Shuffle the words randomly
+        words=()
+        while IFS= read -r word; do
+            words+=("$word")
+        done < <(printf '%s\n' "${fallback_words[@]}" | shuf)
+
+        # Randomly capitalize one word (0-11)
+        local random_idx=$((RANDOM % 12))
+        words[$random_idx]=$(echo "${words[$random_idx]}" | sed 's/./\U&/')
     fi
     
     local line1="${words[0]} ${words[1]} ${words[2]} ${words[3]}"
