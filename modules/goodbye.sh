@@ -1,6 +1,6 @@
 # Goodbye messages module
 # I get that this file is unnecessary, so I left it optional for program functionality.
-# Standalone builds will not include this file.
+# Standalone builds will not include this file and will fallback to a couple of hard-coded phrases.
 
 # Check if running on low-spec machine (less than 2 CPU cores or less than 2GB RAM)
 # If so, limit to 15 phrases for better performance
