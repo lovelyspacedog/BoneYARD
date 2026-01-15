@@ -323,6 +323,7 @@ is_holiday_season=$([[ "$current_month" == "11" || "$current_month" == "12" ]] &
 is_valentines_day=$([[ "$current_month" == "02" && "$current_day" == "14" ]] && echo "true" || echo "false")
 is_easter_season=$([[ "$current_month" == "03" || "$current_month" == "04" ]] && echo "true" || echo "false")
 is_halloween=$([[ "$current_month" == "10" && "$current_day" == "31" ]] && echo "true" || echo "false")
+is_winter=$([[ "$current_month" == "12" || "$current_month" == "01" || "$current_month" == "02" ]] && echo "true" || echo "false")
 is_summer=$([[ "$current_month" == "06" || "$current_month" == "07" || "$current_month" == "08" ]] && echo "true" || echo "false")
 is_fall=$([[ "$current_month" == "09" || "$current_month" == "10" ]] && echo "true" || echo "false")
 is_spring=$([[ "$current_month" == "03" || "$current_month" == "04" || "$current_month" == "05" ]] && echo "true" || echo "false")
@@ -474,43 +475,56 @@ if [[ "$is_halloween" == "true" ]]; then
 fi
 
 # === SEASONAL MESSAGES (General seasons, not specific holidays) ===
-if [[ "$is_summer" == "true" ]]; then
-    # Summer season
+if [[ "$is_winter" == "true" ]]; then
+    # Winter season (general winter, not holiday-specific)
     if [[ "$is_low_spec" == "true" ]]; then
-        goodbye_text+=("Stay cool this summer! Enjoy the sunny days!")
+        goodbye_text+=("Stay warm by the fire! No more cold nose walks!")
     else
         goodbye_text+=(
-            "Stay cool this summer! Enjoy the sunny days!"
-            "Summer vibes and beach walks!"
-            "May your summer be filled with sunshine and fun!"
-            "Hot dog days are here! Stay hydrated!"
-            "Summer adventures await!"
+            "Stay warm by the fire! No more cold nose walks!"
+            "Winter wonder-paws! Snow angels and belly rubs!"
+            "May your winter be filled with cozy blanket forts!"
+            "Cold noses mean warm hearts and extra treats!"
+            "Winter adventures: Fireplace cuddles and snowball chases!"
+        )
+    fi
+elif [[ "$is_summer" == "true" ]]; then
+    # Summer season
+    if [[ "$is_low_spec" == "true" ]]; then
+        goodbye_text+=("Pawsitively hot! Stay cool and hydrated!")
+    else
+        goodbye_text+=(
+            "Pawsitively hot! Stay cool and hydrated!"
+            "Summer vibes: Beach walks and ice cube treats!"
+            "May your summer be filled with sunshine and sprinklers!"
+            "Hot dog days are here! Stay in the shade!"
+            "Summer adventures: Pool jumps and fan naps!"
         )
     fi
 elif [[ "$is_fall" == "true" ]]; then
     # Fall season
     if [[ "$is_low_spec" == "true" ]]; then
-        goodbye_text+=("Enjoy the crisp fall air and colorful leaves!")
+        goodbye_text+=("Leaf-peeping walks and pumpkin-scented adventures!")
     else
         goodbye_text+=(
-            "Enjoy the crisp fall air and colorful leaves!"
-            "Fall scents are the best - pumpkin and leaves!"
-            "Cozy sweaters and autumn walks!"
-            "May your fall be filled with harvest treats!"
-            "Pumpkin spice and everything nice!"
+            "Leaf-peeping walks and pumpkin-scented adventures!"
+            "Fall scents are the best - chasing leaves and squirrels!"
+            "Cozy sweaters and autumn squirrel patrols!"
+            "May your fall be filled with harvest treats and acorn hunts!"
+            "Pumpkin spice and everything nice - including belly rubs!"
         )
     fi
 elif [[ "$is_spring" == "true" ]]; then
     # Spring season (overlaps with Easter but more general)
     if [[ "$is_low_spec" == "true" ]]; then
-        goodbye_text+=("Spring has sprung! Time for fresh air and walks!")
+        goodbye_text+=("Spring has sprung! Time for muddy paws and fresh scents!")
     else
         goodbye_text+=(
-            "Spring has sprung! Time for fresh air and walks!"
-            "Flower power! Enjoy the blooming season!"
+            "Spring has sprung! Time for muddy paws and fresh scents!"
+            "Flower power! Chasing butterflies and sniffing blooms!"
             "Spring cleaning time - fresh walks for everyone!"
-            "May your spring be filled with new beginnings!"
-            "Birds singing, flowers blooming, walks calling!"
+            "May your spring be filled with new adventures and puddles!"
+            "Birds singing, flowers blooming, squirrels calling!"
         )
     fi
 fi
