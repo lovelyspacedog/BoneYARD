@@ -258,3 +258,9 @@ declare -a goodbye_text=(
     # === ONE LAST CLASSIC ===
     "That's all, folks! Woof!"
 )
+
+if [[ "$(date +%m)" == "12" ]]; then
+    # === CHRISTMAS THEMED ===
+    goodbye_text+=("Merry Lick-mas!")
+    goodbye_text+=("Happy Howl-idays!")
+fi
