@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-01-14
+
+### Added
+- **🧩 Modular Script Layout**:
+  - Split the full script into feature-focused modules (CLI, tagging, search, organize, remove, stats, yard, export, backups, pager, menu).
+  - New `modules/` directory used by `BoneYARD.sh` at runtime.
+- **📦 Standalone Builder**:
+  - New `--generate-standalone` flag to embed modules into a single-file script.
+  - Standalone builds disable auto-updates to avoid partial upgrades.
+
+### Changed
+- **🚀 Updater Safety**:
+  - Minimal update mode now copies module files so upgrades include new scripts.
+- **📚 Documentation**:
+  - Updated README to reflect the modular architecture and standalone workflow.
+
 ## [1.3.0] - 2026-01-14
 
 ### Added

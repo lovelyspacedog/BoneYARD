@@ -90,14 +90,27 @@ To run BoneYARD, you'll need the following "toys" installed:
 ## 📂 Project Structure
 
 - `boneyard`: A lightweight launcher script.
-- `BoneYARD.sh`: The main Bash script containing all core logic and TUI.
+- `BoneYARD.sh`: The main launcher that loads the modular scripts.
+- `modules/`: Feature modules sourced by `BoneYARD.sh`:
+  - `core.sh`: Shared utilities, update logic, database helpers.
+  - `cli.sh`: CLI parsing and help output.
+  - `tagging.sh`: Bury/update/edit flows.
+  - `search.sh`: Fetch/list flows.
+  - `organize.sh`: Batch organize flows.
+  - `remove.sh`: Clean-up and incineration flows.
+  - `stats.sh`: Pack statistics.
+  - `yard.sh`: Yard switching.
+  - `export.sh`: CSV/HTML export.
+  - `backups.sh`: Snapshot/cache management.
+  - `pager.sh`: License/changelog/pager views.
+  - `menu.sh`: Main menu and app entrypoint.
 - `boneyard.json`: The default database file (created automatically if missing).
 - `wordlist.txt`: A local fallback wordlist for pass-phrase generation.
 - `LICENSE`: Full GNU General Public License v3 text.
 - `CHANGELOG.md`: Detailed history of project changes.
 - `README.md`: The file you are currently reading!
 
-> **Note on Standalone Operation**: `BoneYARD.sh` is designed to be fully portable. While this repository includes several helper files, the only file strictly required to run the full TUI is `BoneYARD.sh`. Other files like `wordlist.txt`, `LICENSE`, and the `boneyard` launcher are completely optional.
+> **Note on Standalone Operation**: BoneYARD now ships as a modular project. Use `--generate-standalone` to build a single-file script for portability. Updates are disabled in the standalone file, so regenerate it when you want new versions.
 
 ---
 
@@ -123,7 +136,7 @@ You can also sniff out scents directly from the terminal:
 Running `./boneyard --help` provides the following reference:
 
 ```text
-🐾 BoneYARD v1.3.0 (Yappy Archive and Retrieval Database)
+🐾 BoneYARD v1.4.0 (Yappy Archive and Retrieval Database)
 A powerful, interactive TUI system for burying and fetching bones using JSON.
 
 USAGE:
@@ -146,10 +159,15 @@ OPTIONS:
                          "contains" searching instead of exact matching.
   --pager PAGER          Force a specific pager (nvim, nano, less) for the rules.
                          Use 'safe' for the built-in 5-line-at-a-time viewer.
+  --generate-standalone [FILE]
+                         Build a single-file BoneYARD script with all modules
+                         embedded. Defaults to: BoneYARD-standalone.sh
+                         Updates are disabled in the generated file.
   -h, -?, --help         Show this comprehensive help message.
 
 MAIN FEATURES:
-  Fetch Bones         Filter by scent, bone name (contains), or kennel.
+  Fetch Bones         Filter by scent, bone name (contains), kennel, or date.
+                     Scent search supports AND, OR, NOT (e.g. bash AND script).
   Bury New Bone       Pick a bone using ranger and assign searchable scents.
   Bury Entire Litter  Batch-bury an entire kennel with interactive 
                       copy/undo/skip/all functionality.
@@ -158,6 +176,7 @@ MAIN FEATURES:
   Clean Up the Yard   Remove specific bones or entire kennels from the yard.
   Switch Yard         Open a different JSON database file (bones are not moved).
   Cache Bones         Snapshot suite: bury, fetch, paw through, or clean up.
+  Export Yard         Export the yard to CSV or HTML for external use.
   Doggy Bag Mode      Run a non-persistent session with save-on-exit safety.
   Show Pack Stats     View scent frequency, kennel counts, and recent activity.
   Rebuild Doghouse    Install the latest version from GitHub (Update Available!).
