@@ -11,6 +11,9 @@ All notable changes to this project will be documented in this file.
 - **📦 Standalone Builder**:
   - New `--generate-standalone` flag to embed modules into a single-file script.
   - Standalone builds disable auto-updates to avoid partial upgrades.
+- **🔐 Enhanced Security**:
+  - Improved database deletion passphrase generation with expanded 18-word pool.
+  - Random word scrambling and selective capitalization to prevent automated attacks.
 
 ### Changed
 - **🚀 Updater Safety**:
