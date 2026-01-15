@@ -102,10 +102,8 @@ load_modules() {
     source "$BONEYARD_MODULE_DIR/backups.sh"
     # shellcheck source=/dev/null
     source "$BONEYARD_MODULE_DIR/pager.sh"
-    # shellcheck source=/dev/null
-    source "$BONEYARD_MODULE_DIR/menu.sh"
 
-    # Load goodbye.sh with fallback
+    # Load goodbye.sh with fallback (before menu.sh since menu.sh references goodbye_text)
     if [[ -f "$BONEYARD_MODULE_DIR/goodbye.sh" ]]; then
         # shellcheck source=/dev/null
         source "$BONEYARD_MODULE_DIR/goodbye.sh"
@@ -119,6 +117,9 @@ load_modules() {
             "Paws for thought!"
         )
     fi
+
+    # shellcheck source=/dev/null
+    source "$BONEYARD_MODULE_DIR/menu.sh"
 }
 
 generate_standalone() {
@@ -164,10 +165,8 @@ generate_standalone() {
         echo ""
         cat "$BONEYARD_MODULE_DIR/pager.sh"
         echo ""
-        cat "$BONEYARD_MODULE_DIR/menu.sh"
-        echo ""
 
-        # Handle goodbye.sh with fallback for standalone builds
+        # Handle goodbye.sh with fallback for standalone builds (before menu.sh)
         if [[ -f "$BONEYARD_MODULE_DIR/goodbye.sh" ]]; then
             cat "$BONEYARD_MODULE_DIR/goodbye.sh"
         else
@@ -182,6 +181,9 @@ declare -a goodbye_text=(
 )
 EOF
         fi
+        echo ""
+
+        cat "$BONEYARD_MODULE_DIR/menu.sh"
         echo ""
         awk '/^# === MAIN START ===/{flag=1;next} /^# === MAIN END ===/{flag=0} flag{print}' "$SCRIPT_DIR/BoneYARD.sh"
     } > "$temp_output"
