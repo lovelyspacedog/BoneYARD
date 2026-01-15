@@ -259,11 +259,53 @@ declare -a goodbye_text=(
     "That's all, folks! Woof!"
 )
 
-if [[ "$(date +%m)" == "11" || "$(date +%m)" == "12" ]]; then
-    # === END-OF-YEAR HOLIDAY THEMED (November-December) ===
-    # Inclusive of Christmas, Hanukkah, Kwanzaa, New Year's, and other winter traditions
+# Get current date components for targeted holiday messaging
+current_month=$(date +%m)
+current_day=$(date +%d)
+current_year=$(date +%Y)
 
-    # Christmas & General Holiday
+# Check if we're in Christmas week (December 20-31)
+is_christmas_week=$([[ "$current_month" == "12" && "$current_day" -ge 20 ]] && echo "true" || echo "false")
+
+# Check if we're in New Year's period (December 30 - January 2)
+is_new_years_period=$([[ "$current_month" == "12" && "$current_day" -ge 30 ]] && echo "true" || [[ "$current_month" == "01" && "$current_day" -le 2 ]] && echo "true" || echo "false")
+
+# Check if we're in general holiday season (November-December)
+is_holiday_season=$([[ "$current_month" == "11" || "$current_month" == "12" ]] && echo "true" || echo "false")
+
+if [[ "$is_holiday_season" == "true" ]]; then
+    # === GENERAL HOLIDAY SEASON (November-December) ===
+
+    # Hanukkah (Festival of Lights) - can occur in Nov-Dec
+    goodbye_text+=(
+        "Happy Hanu-pup-kah!"
+        "May your menorah be lit and your dreidel spin!"
+        "Wishing you eight nights of latkes and fun!"
+        "Hanukkah Sameach, my furry friend!"
+    )
+
+    # Kwanzaa (December 26 - January 1) - can start in Dec
+    goodbye_text+=(
+        "Habari Gani! (What's the news?) Happy Kwanzaa!"
+        "May your Kwanzaa be filled with unity and joy!"
+        "Celebrating the seven principles with my pack!"
+        "Harambee! (Let's all work together!) Happy Kwanzaa!"
+    )
+
+    # General Festive Season
+    goodbye_text+=(
+        "Season's Greetings from your favorite pup!"
+        "May your season be filled with joy and treats!"
+        "Happy Holidays! Stay warm and well-fed!"
+        "Festive wishes from your loyal canine companion!"
+        "May your winter be cozy and your holidays bright!"
+        "Happy Solstice! Enjoy the lengthening days!"
+        "Winter blessings and warm snuggles to you!"
+    )
+fi
+
+if [[ "$is_christmas_week" == "true" ]]; then
+    # === CHRISTMAS WEEK (December 20-31) ===
     goodbye_text+=(
         "Merry Lick-mas!"
         "Happy Howl-idays!"
@@ -278,39 +320,20 @@ if [[ "$(date +%m)" == "11" || "$(date +%m)" == "12" ]]; then
         "Have a holly jolly Christmas, pup!"
         "Santa's favorite helper says goodbye!"
     )
+fi
 
-    # Hanukkah (Festival of Lights)
-    goodbye_text+=(
-        "Happy Hanu-pup-kah!"
-        "May your menorah be lit and your dreidel spin!"
-        "Wishing you eight nights of latkes and fun!"
-        "Hanukkah Sameach, my furry friend!"
-    )
-
-    # Kwanzaa (December 26 - January 1)
-    goodbye_text+=(
-        "Habari Gani! (What's the news?) Happy Kwanzaa!"
-        "May your Kwanzaa be filled with unity and joy!"
-        "Celebrating the seven principles with my pack!"
-        "Harambee! (Let's all work together!) Happy Kwanzaa!"
-    )
-
-    # New Year's & Winter Celebrations
+if [[ "$is_new_years_period" == "true" ]]; then
+    # === NEW YEAR'S PERIOD (December 30 - January 2) ===
     goodbye_text+=(
         "Happy New Year! May it be filled with belly rubs!"
         "Here's to a pawsome new year ahead!"
         "New Year's resolution: More treats and walks!"
         "May your new year be merry and your resolutions achievable!"
-        "Happy Solstice! Enjoy the lengthening days!"
-        "Winter blessings and warm snuggles to you!"
-    )
-
-    # General Festive Season
-    goodbye_text+=(
-        "Season's Greetings from your favorite pup!"
-        "May your season be filled with joy and treats!"
-        "Happy Holidays! Stay warm and well-fed!"
-        "Festive wishes from your loyal canine companion!"
-        "May your winter be cozy and your holidays bright!"
+        "Happy New Year! Wishing you 365 days of adventure!"
+        "New Year, new walks, new treats - same great pup!"
+        "May your New Year be filled with endless belly rubs!"
+        "Here's to a year of more fetch and fewer baths!"
+        "Happy New Year! May all your dreams come true (and include treats)!"
+        "New Year's wish: May your bowl never be empty!"
     )
 fi
