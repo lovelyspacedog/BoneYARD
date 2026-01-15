@@ -82,7 +82,15 @@ main_menu() {
         fi
         double_bark_sfx
         rm -f "/tmp/boneyard_remote_version"
-        typewrite "$(printf "%s\n" "${goodbye_text[@]}" | shuf -n 1)"
+
+        # Get a random goodbye message
+        if [[ ${#goodbye_text[@]} -gt 0 ]]; then
+            random_goodbye="$(printf "%s\n" "${goodbye_text[@]}" | shuf -n 1 2>/dev/null || printf "%s\n" "${goodbye_text[@]}" | head -n 1)"
+        else
+            # Ultimate fallback if array is empty
+            random_goodbye="Woof woof! (Goodbye!)"
+        fi
+        typewrite "$random_goodbye"
         exit 0
     fi
 
@@ -134,7 +142,15 @@ main_menu() {
             fi
             double_bark_sfx
             rm -f "/tmp/boneyard_remote_version"
-            typewrite "$(printf "%s\n" "${goodbye_text[@]}" | shuf -n 1)"
+
+            # Get a random goodbye message
+            if [[ ${#goodbye_text[@]} -gt 0 ]]; then
+                random_goodbye="$(printf "%s\n" "${goodbye_text[@]}" | shuf -n 1 2>/dev/null || printf "%s\n" "${goodbye_text[@]}" | head -n 1)"
+            else
+                # Ultimate fallback if array is empty
+                random_goodbye="Woof woof! (Goodbye!)"
+            fi
+            typewrite "$random_goodbye"
             exit 0
             ;;
         *) main_menu;;

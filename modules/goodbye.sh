@@ -502,3 +502,14 @@ elif [[ "$is_spring" == "true" ]]; then
         )
     fi
 fi
+
+# Ensure we always have at least some goodbye messages
+if [[ ${#goodbye_text[@]} -eq 0 ]]; then
+    goodbye_text=(
+        "Woof woof! (Goodbye!)"
+        "Tail wags for now!"
+        "Stay paw-sitive!"
+        "Bark at you later!"
+        "Paws for thought!"
+    )
+fi
