@@ -16,19 +16,23 @@ BoneYARD uses dumb doggo terminology, such as:
 - **Kennel**: A directory containing bones.
 - **Yard**: Your entire database of buried treasures.
 - **Sniffing**: Searching or filtering through your bones.
+- **Litter**: A group of bones/files to batch process.
+- **Pack**: The collection of bones or user community.
+- **Doggy Bag**: A temporary session mode for safe experimentation.
 
 ---
 
 ## ✨ Main Features
 
-- **🎾 Fetch Bones**: Highly flexible search system. Filter by scent, bone name, or kennel. (Now #1 priority in the main menu).
+- **🎾 Fetch Bones**: Highly flexible search system. Filter by scent, bone name, kennel, or date range. Advanced boolean scent queries (AND, OR, NOT) supported. (Now #1 priority in the main menu).
 - **🦴 Bury New Bone**: Pick a file using `ranger` and assign searchable scents.
 - **🐕 Bury Entire Litter**: Batch-tag an entire kennel with interactive copy, undo, skip, and "all" functionality. Now features **Smart Tagging** (duplicate detection) and a **Session Scents Tracker**.
 - **👃 Update Scents**: Quickly update or add new scents to any bone already in the yard.
 - **🦴 Organize Bones**: Batch-organize your files into a new folder based on scent frequency.
-- **🧹 Clean Up the Yard**: Remove bones or entire kennels from your database.
+- **🧹 Clean Up the Yard**: Remove bones, entire kennels, or date ranges from your database.
 - **🏘️ Switch Yard**: Move the pack to a different JSON database file.
 - **🐾 Cache Bones (Snapshots)**: New management suite for yard backups. Bury snapshots, fetch from the cache, paw through them, or clean them up.
+- **📤 Export Yard**: Export your yard data to CSV or HTML files for external analysis and sharing.
 - **👜 Doggy Bag Mode**: A non-persistent session mode. Make changes safely and only "bury" them in the yard when you exit.
 - **📊 Pack Stats**: View comprehensive statistics, including scent frequency and recent burial activity.
 - **🚀 Rebuild Doghouse**: Automatic background version check with one-click update. Now includes connectivity awareness to prevent offline hangs.
@@ -119,7 +123,7 @@ You can also sniff out scents directly from the terminal:
 Running `./boneyard --help` provides the following reference:
 
 ```text
-🐾 BoneYARD v1.2.0 (Yappy Archive and Retrieval Database)
+🐾 BoneYARD v1.3.0 (Yappy Archive and Retrieval Database)
 A powerful, interactive TUI system for burying and fetching bones using JSON.
 
 USAGE:

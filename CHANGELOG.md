@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-01-14
+
+### Added
+- **🔍 Enhanced Scent Search**:
+  - Added boolean operators (AND, OR, NOT) to scent filtering for more powerful queries
+  - Supports complex search expressions like "bash AND script" or "python NOT test"
+  - Enhanced search-by-name functionality with contains matching
+- **📤 Export Yard Data**:
+  - New export functionality to save yard data as CSV or HTML files
+  - External tool compatibility for data analysis and sharing
+- **📅 Date-Based Operations**:
+  - **Search by Date Range**: Filter bones by modification date ranges
+  - **Edit by Date Range**: Bulk update scents for bones within date ranges
+  - **Remove by Date Range**: Clean up bones from specific time periods
+- **🔒 Database Safety Features**:
+  - **Database Locking**: Prevents concurrent access corruption with file-based locks
+  - **Memory Caching**: Improved performance through in-memory database operations
+  - Enhanced health checks with automatic corruption detection and repair suggestions
+
+### Changed
+- **🌐 Connectivity Awareness**: Enhanced offline handling to prevent update check hangs
+- **⚡ Performance Improvements**: Database operations now use cached in-memory copies for faster access
+- **🎨 UI Refinements**: Improved menu organization and user experience consistency
+
+### Fixed
+- Improved error handling for corrupted database scenarios
+- Enhanced timezone offset handling in edge cases
+
 ## [1.2.0] - 2026-01-14
 
 ### Added

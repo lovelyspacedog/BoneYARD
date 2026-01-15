@@ -9,13 +9,23 @@
 
 set -euo pipefail
 
+# For a future implementation:
+# Restructure the script into separate files for each module/feature.
+# This will make the script more readable and maintainable.
+# Provide a flag in the main script that allows you to generate a standalone
+# script with all the modules/features combined into a single file.
+# Ensure that update mode is disabled when generating a standalone script.
+# Name the standalone script "BoneYARD-standalone.sh" and make it executable.
+
 # Doggy Bag Mode: No changes are written to the database until the user exits the TUI.
 DOGGY_BAG_MODE=false
 WORKING_DATABASE_FILE=""
 SESSION_MODIFIED=false
+DB_CACHE=""
+CURRENT_LOCK_FILE=""
 
 # Global Variables
-SOFTWARE_VERSION="1.2.0"
+SOFTWARE_VERSION="1.3.0"
 # This is the version of the database schema. 
 # Backwards compatibility is maintained within the same major version (X.0.0).
 # Software will refuse to run if the major version differs, or if the database 
@@ -110,10 +120,9 @@ OPTIONS:
                          Defaults to: $SCRIPT_DIR/boneyard.json
   -b, --doggy-bag        Enable "Doggy Bag" mode. No changes are written to the 
                          main database until you exit the TUI.
-  -b, --doggy-bag        Enable "Doggy Bag" mode. No changes are written to the 
-                         main database until you exit the TUI.
   -t, --tags FILE        Output comma-delimited scents for a specific bone.
                          Accepts full path or just a bone name.
+                         Supports boolean operators (AND, OR, NOT).
                          Exit codes: 0=found, 1=not found, N=match count.
   --with-dir [use SEP]  When used with --tags, appends kennel components
                          and the bone name to the output scents.
@@ -127,7 +136,8 @@ OPTIONS:
   -h, -?, --help         Show this comprehensive help message.
 
 MAIN FEATURES:
-  Fetch Bones         Filter by scent, bone name (contains), or kennel.
+  Fetch Bones         Filter by scent, bone name (contains), kennel, or date.
+                      Scent search supports AND, OR, NOT (e.g. bash AND script).
   Bury New Bone       Pick a bone using ranger and assign searchable scents.
   Bury Entire Litter  Batch-bury an entire kennel with interactive 
                       copy/undo/skip/all functionality.
@@ -135,7 +145,9 @@ MAIN FEATURES:
   Organize Bones      Batch-move/rename bones based on scent frequency.
   Clean Up the Yard   Remove specific bones or entire kennels from the yard.
   Switch Yard         Open a different JSON database file (bones are not moved).
-  Cache Bones         Snapshot suite: bury, fetch, paw through, or clean up.
+  Cache Bones         Snapshot suite: bury, fetch, paw through, or clean up. 
+                      Includes Auto-Snapshot protection.
+  Export Yard         Export the yard to a CSV or HTML file for external use.
   Doggy Bag Mode      Run a non-persistent session with save-on-exit safety.
   Show Pack Stats     View scent frequency, kennel counts, and recent activity.
   Rebuild Doghouse    Install the latest version from GitHub (Update Available!).
@@ -187,7 +199,9 @@ get_tags_for_file() {
     local target="$1"
     local matches
 
-    if ! jq -e '.' "$WORKING_DATABASE_FILE" &>/dev/null; then
+    load_db_to_memory
+
+    if ! jq -e '.' <<< "$DB_CACHE" &>/dev/null; then
         echo "Error: BoneYARD database is corrupted or not valid JSON: $DATABASE_FILE" >&2
         exit 1
     fi
@@ -202,19 +216,19 @@ get_tags_for_file() {
         if [[ "$CONTAINS_SEARCH" == "true" ]]; then
             matches=$(jq -c --arg name "$name" --arg path "$path" \
                 '.files[] | select((.name | ascii_downcase | contains($name | ascii_downcase)) and (.path | ascii_downcase | contains($path | ascii_downcase)))' \
-                "$WORKING_DATABASE_FILE")
+                <<< "$DB_CACHE")
         else
             matches=$(jq -c --arg name "$name" --arg path "$path" \
-                '.files[] | select(.name == $name and .path == $path)' "$WORKING_DATABASE_FILE")
+                '.files[] | select(.name == $name and .path == $path)' <<< "$DB_CACHE")
         fi
     else
         # It's just a bone name
         if [[ "$CONTAINS_SEARCH" == "true" ]]; then
             matches=$(jq -c --arg name "$target" \
-                '.files[] | select(.name | ascii_downcase | contains($name | ascii_downcase))' "$WORKING_DATABASE_FILE")
+                '.files[] | select(.name | ascii_downcase | contains($name | ascii_downcase))' <<< "$DB_CACHE")
         else
             matches=$(jq -c --arg name "$target" \
-                '.files[] | select(.name == $name)' "$WORKING_DATABASE_FILE")
+                '.files[] | select(.name == $name)' <<< "$DB_CACHE")
         fi
     fi
 
@@ -428,6 +442,79 @@ check_github_connectivity() {
     curl -Is --connect-timeout 2 https://github.com &>/dev/null
 }
 
+# Load the database into memory
+load_db_to_memory() {
+    if [[ -f "$WORKING_DATABASE_FILE" ]]; then
+        DB_CACHE=$(<"$WORKING_DATABASE_FILE")
+    else
+        DB_CACHE=""
+    fi
+}
+
+# Sync the memory cache to disk
+sync_db_to_disk() {
+    echo "$DB_CACHE" > "$WORKING_DATABASE_FILE"
+}
+
+# Parse a tag query string into a jq select expression
+# Supports AND, OR, NOT and parentheses
+build_tag_query_filter() {
+    local input="$1"
+    [[ -z "${input// }" ]] && return
+
+    # Helper to format a tag for jq
+    _format_tag() {
+        local tag="$1"
+        # Escape double quotes for jq string
+        local escaped=$(echo "$tag" | sed 's/"/\\"/g')
+        echo "(.tags | map(ascii_downcase) | contains([\"$escaped\" | ascii_downcase]))"
+    }
+
+    # If no boolean operators or parentheses, keep simple exact match
+    if [[ ! "$input" =~ [[:space:]](AND|OR|NOT)[[:space:]] && ! "$input" =~ ^NOT[[:space:]] && ! "$input" =~ "(" ]]; then
+        _format_tag "$input"
+        return
+    fi
+
+    set -f # Disable globbing for tokenization
+    local tokens=( $(echo "$input" | sed 's/(/ ( /g; s/)/ ) /g') )
+    set +f # Re-enable globbing
+    
+    local jq_expr=""
+    local last_was_operand=false
+    
+    for ((i=0; i<${#tokens[@]}; i++)); do
+        local token="${tokens[i]}"
+        local upper_token="${token^^}"
+        
+        case "$upper_token" in
+            "AND") jq_expr+=" and "; last_was_operand=false ;;
+            "OR")  jq_expr+=" or "; last_was_operand=false ;;
+            "NOT")
+                [[ "$last_was_operand" == "true" ]] && jq_expr+=" and "
+                local next_token="${tokens[i+1]:-}"
+                if [[ "$next_token" == "(" ]]; then
+                     jq_expr+=" not "
+                else
+                     jq_expr+=" (not$(_format_tag "$next_token")) "
+                     ((i++))
+                fi
+                last_was_operand=true
+                ;;
+            "(")   
+                [[ "$last_was_operand" == "true" ]] && jq_expr+=" and "
+                jq_expr+=" ( "; last_was_operand=false ;;
+            ")")   jq_expr+=" ) "; last_was_operand=true ;;
+            *)     
+                [[ "$last_was_operand" == "true" ]] && jq_expr+=" and "
+                jq_expr+=" $(_format_tag "$token") "
+                last_was_operand=true
+                ;;
+        esac
+    done
+    echo "$jq_expr"
+}
+
 # Fetch the latest version from the remote repository
 grab_remote_version() {
     check_github_connectivity || return 0
@@ -595,6 +682,8 @@ EOF
     fi
 
     echo "Starting the handoff... Woof!"
+    # Release lock before handover
+    release_db_lock
     # Execute the updater and replace the current process
     exec "$updater_script"
 }
@@ -604,13 +693,13 @@ check_compatibility() {
     if [[ ! -f "$WORKING_DATABASE_FILE" ]]; then return 0; fi
     
     # Ensure it's valid JSON before proceeding
-    if ! jq -e '.' "$WORKING_DATABASE_FILE" &>/dev/null; then
+    if ! jq -e '.' <<< "$DB_CACHE" &>/dev/null; then
         echo "Error: Cannot check compatibility - Database is not valid JSON."
         exit 1
     fi
 
     local db_version
-    db_version=$(jq -r '.version' "$WORKING_DATABASE_FILE" 2>/dev/null || echo "0.0.0")
+    db_version=$(jq -r '.version' <<< "$DB_CACHE" 2>/dev/null || echo "0.0.0")
     
     # Handle legacy integer versions (e.g. "1" -> "1.0.0")
     if [[ "$db_version" =~ ^[0-9]+$ ]]; then
@@ -659,8 +748,8 @@ check_compatibility() {
         echo "Software Version: $SOFTWARE_VERSION"
         echo ""
         if gum confirm "Would you like to update the database version to match the software?"; then
-            jq --arg ver "$SOFTWARE_VERSION" '.version = $ver' "$WORKING_DATABASE_FILE" > "$WORKING_DATABASE_FILE.tmp"
-            mv "$WORKING_DATABASE_FILE.tmp" "$WORKING_DATABASE_FILE"
+            DB_CACHE=$(jq --arg ver "$SOFTWARE_VERSION" '.version = $ver' <<< "$DB_CACHE")
+            sync_db_to_disk
             SESSION_MODIFIED=true
             typewrite "✓ Database version updated to $SOFTWARE_VERSION."
             echo ""
@@ -728,6 +817,42 @@ select_timezone_offset() {
     esac
 }
 
+# Acquire a lock on the database file to prevent concurrent access
+acquire_db_lock() {
+    local db_path="$1"
+    local lock_file="${db_path}.lock"
+    
+    if [[ -f "$lock_file" ]]; then
+        local lock_pid=$(cat "$lock_file" 2>/dev/null || echo "")
+        # If PID is not empty and refers to a running process that isn't US
+        if [[ -n "$lock_pid" ]] && [[ "$lock_pid" != "$$" ]] && kill -0 "$lock_pid" 2>/dev/null; then
+            echo ""
+            gum style --foreground 196 --border double --padding "1 2" "🚨 DATABASE LOCKED"
+            echo "The database at $(basename "$db_path") is currently in use by another pup (PID: $lock_pid)."
+            echo "To prevent yard corruption, only one pup can dig in the same yard at once."
+            echo ""
+            exit 1
+        else
+            # Stale lock or it's us (from an exec)
+            rm -f "$lock_file"
+        fi
+    fi
+    
+    echo $$ > "$lock_file"
+    CURRENT_LOCK_FILE="$lock_file"
+}
+
+# Release the currently held database lock
+release_db_lock() {
+    if [[ -n "$CURRENT_LOCK_FILE" && -f "$CURRENT_LOCK_FILE" ]]; then
+        local lock_pid=$(cat "$CURRENT_LOCK_FILE" 2>/dev/null || echo "")
+        if [[ "$lock_pid" == "$$" ]]; then
+            rm -f "$CURRENT_LOCK_FILE"
+        fi
+    fi
+    CURRENT_LOCK_FILE=""
+}
+
 # Check if the database is corrupted and offer repair or re-init
 check_database_health() {
     if [[ ! -f "$WORKING_DATABASE_FILE" ]]; then return 0; fi
@@ -747,6 +872,7 @@ check_database_health() {
                 local salvaged_file="/tmp/boneyard_salvaged.json"
                 if jq -e '.' "$WORKING_DATABASE_FILE" > "$salvaged_file" 2>/dev/null; then
                     mv "$salvaged_file" "$WORKING_DATABASE_FILE"
+                    load_db_to_memory
                     typewrite "✓ Database structure salvaged and repaired."
                 else
                     rm -f "$salvaged_file"
@@ -784,7 +910,7 @@ init_database() {
         offset=$(select_timezone_offset "0" "true")
     elif [[ -z "$offset" ]]; then
         # Force re-init but no offset provided, use existing
-        offset=$(jq -r '."timezone-offset" // 0' "$WORKING_DATABASE_FILE" 2>/dev/null || echo "0")
+        offset=$(jq -r '."timezone-offset" // 0' <<< "$DB_CACHE" 2>/dev/null || echo "0")
     fi
 
     if [[ ! -f "$WORKING_DATABASE_FILE" || "$force" == "true" ]]; then
@@ -797,17 +923,107 @@ init_database() {
     "2": "Use a timezone offset of -18000 for EST (-5 hours), or -14400 for EDT (-4 hours).",
     "3": "Units are seconds since epoch."
   },
-  "files": []
+  "files": [],
+  "auto-snapshot": {
+    "enabled": false,
+    "interval": "1d",
+    "last-run": 0
+  }
 }
 EOF
         echo "BoneYARD initialized at $DATABASE_FILE with offset $offset"
         SESSION_MODIFIED=true
+        load_db_to_memory
     fi
+}
+
+# Check if auto-snapshot is due and perform it
+check_auto_snapshot() {
+    # Don't auto-snapshot in Doggy Bag mode to avoid confusion
+    [[ "$DOGGY_BAG_MODE" == "true" ]] && return
+
+    local enabled=$(jq -r '."auto-snapshot".enabled // false' <<< "$DB_CACHE")
+    [[ "$enabled" != "true" ]] && return
+
+    local interval=$(jq -r '."auto-snapshot".interval // "1d"' <<< "$DB_CACHE")
+    local last_run=$(jq -r '."auto-snapshot"."last-run" // 0' <<< "$DB_CACHE")
+    local current_ts=$(date +%s)
+    
+    # Convert interval to seconds
+    local interval_secs=86400 # Default 1 day
+    case "$interval" in
+        *h) interval_secs=$((${interval%h} * 3600)) ;;
+        *d) interval_secs=$((${interval%d} * 86400)) ;;
+        *w) interval_secs=$((${interval%w} * 604800)) ;;
+        *m) interval_secs=$((${interval%m} * 2592000)) ;; # Approx 30 days
+    esac
+
+    if (( current_ts - last_run >= interval_secs )); then
+        echo ""
+        gum style --foreground 212 "🕒 Auto-Snapshot due. Burying a background snapshot..."
+        
+        mkdir -p "$DEFAULT_BACKUP_DIR"
+        local timestamp=$(date +%Y-%m-%d_%H-%M-%S)
+        local backup_file="$DEFAULT_BACKUP_DIR/auto_snapshot_$timestamp.json"
+        
+        if cp "$DATABASE_FILE" "$backup_file"; then
+            echo "✓ Auto-snapshot buried: $(basename "$backup_file")"
+            # Update last-run in memory and disk
+            DB_CACHE=$(jq --argjson ts "$current_ts" '."auto-snapshot"."last-run" = $ts' <<< "$DB_CACHE")
+            sync_db_to_disk
+        else
+            echo "❌ Failed to perform auto-snapshot."
+        fi
+        sleep 1
+    fi
+}
+
+# Configure auto-snapshot settings
+manage_auto_snapshot_config() {
+    play_menu_sound
+    echo ""
+    gum style --foreground 212 --border double --padding "0 1" "🕒 Auto-Snapshot Configuration"
+    
+    local enabled=$(jq -r '."auto-snapshot".enabled // false' <<< "$DB_CACHE")
+    local interval=$(jq -r '."auto-snapshot".interval // "1d"' <<< "$DB_CACHE")
+    
+    echo "Current Status: $( [[ "$enabled" == "true" ]] && echo "✅ Enabled" || echo "❌ Disabled" )"
+    echo "Current Interval: $interval"
+    echo ""
+    
+    local choice
+    choice=$(gum choose "Toggle Status" "Change Interval" "⬅️ Back To Cache Menu" || echo "⬅️ Back To Cache Menu")
+    
+    case "$choice" in
+        "Toggle Status")
+            local new_status="true"
+            [[ "$enabled" == "true" ]] && new_status="false"
+            DB_CACHE=$(jq --argjson status "$new_status" '."auto-snapshot".enabled = $status' <<< "$DB_CACHE")
+            sync_db_to_disk
+            SESSION_MODIFIED=true
+            echo "✓ Auto-snapshot status updated."
+            sleep 1
+            manage_auto_snapshot_config
+            ;;
+        "Change Interval")
+            local new_interval
+            new_interval=$(gum choose "1h" "6h" "12h" "1d" "2d" "1w" "2w" "1m" || echo "$interval")
+            DB_CACHE=$(jq --arg interval "$new_interval" '."auto-snapshot".interval = $interval' <<< "$DB_CACHE")
+            sync_db_to_disk
+            SESSION_MODIFIED=true
+            echo "✓ Auto-snapshot interval updated to $new_interval."
+            sleep 1
+            manage_auto_snapshot_config
+            ;;
+        *)
+            manage_backups
+            ;;
+    esac
 }
 
 # Update the directory cache file
 update_dir_cache() {
-    jq -r '.files[].path' "$WORKING_DATABASE_FILE" | sort -u > "$DIR_CACHE_FILE"
+    jq -r '.files[].path' <<< "$DB_CACHE" | sort -u > "$DIR_CACHE_FILE"
 }
 
 # Robust pause function to wait for user input
@@ -824,7 +1040,7 @@ play_menu_sound() {
 # Get the next unique ID
 get_next_id() {
     local max_id
-    max_id=$(jq '[.files[].unique_id] | max // 0' "$WORKING_DATABASE_FILE")
+    max_id=$(jq '[.files[].unique_id] | max // 0' <<< "$DB_CACHE")
     echo $((max_id + 1))
 }
 
@@ -859,7 +1075,7 @@ add_file() {
     # Check if file already exists in database
     local existing_id
     existing_id=$(jq -r --arg path "$file_path" --arg name "$file_name" \
-        '.files[] | select(.path == $path and .name == $name) | .unique_id' "$WORKING_DATABASE_FILE")
+        '.files[] | select(.path == $path and .name == $name) | .unique_id' <<< "$DB_CACHE")
     
     if [[ -n "$existing_id" ]]; then
         printf "Woof! This bone is already buried in the yard (ID: %04d)\n" "$existing_id"
@@ -911,8 +1127,8 @@ add_file() {
         --argjson ts "$timestamp" \
         '{name: $name, path: $path, tags: $tags, unique_id: $id, modified_timestamp: $ts}')
     
-    jq --argjson entry "$new_entry" '.files += [$entry]' "$WORKING_DATABASE_FILE" > "$WORKING_DATABASE_FILE.tmp"
-    mv "$WORKING_DATABASE_FILE.tmp" "$WORKING_DATABASE_FILE"
+    DB_CACHE=$(jq --argjson entry "$new_entry" '.files += [$entry]' <<< "$DB_CACHE")
+    sync_db_to_disk
     SESSION_MODIFIED=true
     update_dir_cache
     double_bark_sfx
@@ -1005,7 +1221,7 @@ tag_entire_directory() {
         # Check for existing entry
         local existing_data
         existing_data=$(jq -c --arg path "$dir_path" --arg name "$file_name" \
-            '.files[] | select(.path == $path and .name == $name) | {id: .unique_id, tags: .tags}' "$WORKING_DATABASE_FILE" | head -n 1)
+            '.files[] | select(.path == $path and .name == $name) | {id: .unique_id, tags: .tags}' <<< "$DB_CACHE" | head -n 1)
 
         local is_existing=false
         local existing_id=""
@@ -1132,7 +1348,7 @@ tag_entire_directory() {
                         # Check for existing entry
                         local existing_id
                         existing_id=$(jq -r --arg path "$dir_path" --arg name "$file_name" \
-                            '.files[] | select(.path == $path and .name == $name) | .unique_id' "$WORKING_DATABASE_FILE" | head -n 1)
+                            '.files[] | select(.path == $path and .name == $name) | .unique_id' <<< "$DB_CACHE" | head -n 1)
 
                         if [[ -n "$existing_id" && "$existing_id" != "null" ]]; then
                             # Buffer update instead of immediate update
@@ -1244,11 +1460,10 @@ tag_entire_directory() {
                      local id=$(echo "$update" | jq -r '.unique_id')
                      local tags=$(echo "$update" | jq -c '.tags')
                      local ts=$(echo "$update" | jq -r '.modified_timestamp')
-                     jq --argjson id "$id" --argjson tags "$tags" --argjson ts "$ts" \
+                     DB_CACHE=$(jq --argjson id "$id" --argjson tags "$tags" --argjson ts "$ts" \
                          '(.files[] | select(.unique_id == $id) | .tags) = $tags | 
                           (.files[] | select(.unique_id == $id) | .modified_timestamp) = $ts' \
-                         "$WORKING_DATABASE_FILE" > "$WORKING_DATABASE_FILE.tmp"
-                     mv "$WORKING_DATABASE_FILE.tmp" "$WORKING_DATABASE_FILE"
+                         <<< "$DB_CACHE")
                      SESSION_MODIFIED=true
                  done < <(jq -c '.[] | select(.is_update == true)' "$buffered_json_file")
              fi
@@ -1256,20 +1471,20 @@ tag_entire_directory() {
              # 2. Append new bones
              if [[ $new_count -gt 0 ]]; then
                  # Assign real unique IDs now to avoid collisions
-                 local current_max_id=$(jq '[.files[].unique_id] | max // 0' "$WORKING_DATABASE_FILE")
+                 local current_max_id=$(jq '[.files[].unique_id] | max // 0' <<< "$DB_CACHE")
                  
                  # Map over buffered entries to assign correct IDs and remove temporary fields
                  jq --argjson start_id "$current_max_id" \
                     '[.[] | select(.is_update != true and .is_skip != true)] | to_entries | map(.value | del(.is_update) | del(.is_skip) + {unique_id: ($start_id + .key + 1)})' \
-                    "$buffered_json_file" > "$buffered_json_file.tmp"
+                    "$buffered_json_file" > "$WORKING_DATABASE_FILE.tmp"
                  
-                 # Append to database
-                 jq --argjson new_files "$(cat "$buffered_json_file.tmp")" \
-                    '.files += $new_files' "$WORKING_DATABASE_FILE" > "$WORKING_DATABASE_FILE.tmp"
-                 mv "$WORKING_DATABASE_FILE.tmp" "$WORKING_DATABASE_FILE"
+                 # Append to memory cache
+                 DB_CACHE=$(jq --argjson new_files "$(cat "$WORKING_DATABASE_FILE.tmp")" \
+                    '.files += $new_files' <<< "$DB_CACHE")
                  SESSION_MODIFIED=true
              fi
             
+            sync_db_to_disk
             update_dir_cache
             double_bark_sfx
             echo "✓ BoneYARD updated successfully."
@@ -1294,7 +1509,7 @@ update_file_tags() {
     
     # Get current tags
     local current_tags
-    current_tags=$(jq -r --argjson id "$file_id" '.files[] | select(.unique_id == $id) | .tags | join(", ")' "$WORKING_DATABASE_FILE")
+    current_tags=$(jq -r --argjson id "$file_id" '.files[] | select(.unique_id == $id) | .tags | join(", ")' <<< "$DB_CACHE")
     echo "Current scents: $current_tags"
     
     # Get new tags
@@ -1321,11 +1536,11 @@ update_file_tags() {
     timestamp=$(date +%s)
     
     # Update the file in database
-    jq --argjson id "$file_id" --argjson tags "$tags_json" --argjson ts "$timestamp" \
+    DB_CACHE=$(jq --argjson id "$file_id" --argjson tags "$tags_json" --argjson ts "$timestamp" \
         '(.files[] | select(.unique_id == $id) | .tags) = $tags | 
          (.files[] | select(.unique_id == $id) | .modified_timestamp) = $ts' \
-        "$WORKING_DATABASE_FILE" > "$WORKING_DATABASE_FILE.tmp"
-    mv "$WORKING_DATABASE_FILE.tmp" "$WORKING_DATABASE_FILE"
+        <<< "$DB_CACHE")
+    sync_db_to_disk
     SESSION_MODIFIED=true
     update_dir_cache
     
@@ -1341,6 +1556,7 @@ edit_tags() {
     edit_choice=$(gum choose --header "👃 Update Scents" \
         "🏷️ Find By Scent" \
         "📝 Find By Bone Name" \
+        "📅 Find By Date Range" \
         "📁 Filter By Kennel (Directory)" \
         "📋 List All Bones" \
         "⬅️ Back To Main Menu" || true)
@@ -1353,6 +1569,7 @@ edit_tags() {
     case $edit_choice in
         "🏷️ Find By Scent") edit_by_tag;;
         "📝 Find By Bone Name") edit_by_name;;
+        "📅 Find By Date Range") edit_by_date_range;;
         "📁 Filter By Kennel (Directory)") edit_filter_by_directory;;
         "📋 List All Bones") edit_list_all_files;;
     esac
@@ -1394,13 +1611,16 @@ edit_by_tag() {
     local dir_filter="${1:-}"
     echo ""
     local search_tag
-    search_tag=$(gum input --placeholder "Enter scent to find for updating" || true)
+    search_tag=$(gum input --placeholder "Enter scents to find for updating (supports AND, OR, NOT)" || true)
     [[ -z "$search_tag" ]] && { edit_tags; return; }
     
+    local jq_filter
+    jq_filter=$(build_tag_query_filter "$search_tag")
+    
     local matches
-    matches=$(jq -c --arg tag "$search_tag" --arg dir "$dir_filter" \
-        '.files[] | select(($dir == "" or .path == $dir) and (.tags[] | ascii_downcase == ($tag | ascii_downcase)))' \
-        "$WORKING_DATABASE_FILE")
+    matches=$(jq -c --arg dir "$dir_filter" \
+        ".files[] | select((\$dir == \"\" or .path == \$dir) and ($jq_filter))" \
+        <<< "$DB_CACHE")
     
     select_and_update_file "$matches" || true
     
@@ -1432,7 +1652,58 @@ edit_by_name() {
     local matches
     matches=$(jq -c --arg name "$search_name" --arg dir "$dir_filter" \
         '.files[] | select(($dir == "" or .path == $dir) and (($name == "") or (.name | ascii_downcase | contains($name | ascii_downcase))))' \
-        "$WORKING_DATABASE_FILE")
+        <<< "$DB_CACHE")
+    
+    select_and_update_file "$matches" || true
+    
+    if [[ -n "$dir_filter" ]]; then
+        edit_directory_menu "$dir_filter"
+    else
+        edit_tags
+    fi
+}
+
+# Edit by date range
+edit_by_date_range() {
+    local dir_filter="${1:-}"
+    echo ""
+    gum style --foreground 212 --border double --padding "0 1" "📅 Find By Date Range For Updating"
+    echo "Enter dates in YYYY-MM-DD format (or leave blank for all)."
+    
+    local start_date
+    start_date=$(gum input --placeholder "From (YYYY-MM-DD)" || true)
+    
+    local end_date
+    end_date=$(gum input --placeholder "To (YYYY-MM-DD)" || true)
+    [[ "$end_date" == "-" ]] && end_date="$start_date"
+    
+    local start_ts=0
+    local end_ts=2147483647
+    
+    if [[ -n "$start_date" ]]; then
+        start_ts=$(date -d "$start_date" +%s 2>/dev/null || echo "error")
+        if [[ "$start_ts" == "error" ]]; then
+            echo "Error: Invalid start date format."
+            pause
+            edit_tags
+            return
+        fi
+    fi
+    
+    if [[ -n "$end_date" ]]; then
+        end_ts=$(date -d "$end_date 23:59:59" +%s 2>/dev/null || echo "error")
+        if [[ "$end_ts" == "error" ]]; then
+            echo "Error: Invalid end date format."
+            pause
+            edit_tags
+            return
+        fi
+    fi
+    
+    local matches
+    matches=$(jq -c --argjson start "$start_ts" --argjson end "$end_ts" --arg dir "$dir_filter" \
+        '.files[] | select(($dir == "" or .path == $dir) and (.modified_timestamp >= $start and .modified_timestamp <= $end))' \
+        <<< "$DB_CACHE")
     
     select_and_update_file "$matches" || true
     
@@ -1447,7 +1718,7 @@ edit_by_name() {
 edit_list_all_files() {
     local dir_filter="${1:-}"
     local matches
-    matches=$(jq -c --arg dir "$dir_filter" '.files[] | select($dir == "" or .path == $dir)' "$WORKING_DATABASE_FILE")
+    matches=$(jq -c --arg dir "$dir_filter" '.files[] | select($dir == "" or .path == $dir)' <<< "$DB_CACHE")
     
     select_and_update_file "$matches" || true
     
@@ -1488,6 +1759,7 @@ edit_directory_menu() {
     choice=$(gum choose --header "📁 Editing In: $selected_dir" \
         "🏷️ Find By Tag" \
         "📝 Find By Filename" \
+        "📅 Find By Date Range" \
         "📋 List All Files" \
         "❌ Remove Directory Filter" || true)
     
@@ -1499,6 +1771,7 @@ edit_directory_menu() {
     case $choice in
         "🏷️ Find By Tag") edit_by_tag "$selected_dir";;
         "📝 Find By Filename") edit_by_name "$selected_dir";;
+        "📅 Find By Date Range") edit_by_date_range "$selected_dir";;
         "📋 List All Files") edit_list_all_files "$selected_dir";;
     esac
 }
@@ -1511,6 +1784,7 @@ search_file() {
     search_choice=$(gum choose --header "🎾 Fetch Bones" \
         "🏷️ Search By Scent" \
         "📝 Search By Bone Name" \
+        "📅 Search By Date Range" \
         "📁 Filter By Kennel (Directory)" \
         "📋 List All Bones" \
         "⬅️ Back To Main Menu" || true)
@@ -1523,6 +1797,7 @@ search_file() {
     case $search_choice in
         "🏷️ Search By Scent") search_by_tag;;
         "📝 Search By Bone Name") search_by_name;;
+        "📅 Search By Date Range") search_by_date_range;;
         "📁 Filter By Kennel (Directory)") filter_by_directory;;
         "📋 List All Bones") list_all_files;;
     esac
@@ -1533,7 +1808,7 @@ search_by_tag() {
     local dir_filter="${1:-}"
     echo ""
     local search_tag
-    search_tag=$(gum input --placeholder "Enter scent to fetch" || true)
+    search_tag=$(gum input --placeholder "Enter scents to fetch (supports AND, OR, NOT, e.g. bash AND script)" || true)
     
     if [[ -z "$search_tag" ]]; then
         if [[ -n "$dir_filter" ]]; then
@@ -1544,6 +1819,9 @@ search_by_tag() {
         return
     fi
     
+    local jq_filter
+    jq_filter=$(build_tag_query_filter "$search_tag")
+    
     echo ""
     if [[ -n "$dir_filter" ]]; then
         gum style --foreground 212 "🎾 Fetch Results In: $dir_filter"
@@ -1552,14 +1830,14 @@ search_by_tag() {
     fi
     
     local results
-    results=$(jq -r --arg tag "$search_tag" --arg dir "$dir_filter" \
-        '. as $root | .files | sort_by(.modified_timestamp) | reverse | .[] | 
-         select(($dir == "" or .path == $dir) and (.tags[] | ascii_downcase == ($tag | ascii_downcase))) | 
-         "[\((.modified_timestamp + ($root["timezone-offset"] // 0)) | strftime("%Y-%m-%d %H:%M"))] ID: \(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"' \
-        "$WORKING_DATABASE_FILE")
+    results=$(jq -r --arg dir "$dir_filter" --arg q "$search_tag" \
+        ". as \$root | .files | sort_by(.modified_timestamp) | reverse | .[] | 
+         select((\$dir == \"\" or .path == \$dir) and ($jq_filter)) | 
+         \"[\((.modified_timestamp + (\$root[\"timezone-offset\"] // 0)) | strftime(\"%Y-%m-%d %H:%M\"))] ID: \(.unique_id | tostring | if length < 4 then (4 - length) * \"0\" + . else . end) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(\", \"))\"" \
+        <<< "$DB_CACHE")
     
     if [[ -z "$results" ]]; then
-        echo "No bones found with scent: $search_tag"
+        echo "No bones found with scents matching: $search_tag"
     else
         echo "$results"
     fi
@@ -1604,7 +1882,7 @@ search_by_name() {
         '. as $root | .files | sort_by(.modified_timestamp) | reverse | .[] | 
          select(($dir == "" or .path == $dir) and (($name == "") or (.name | ascii_downcase | contains($name | ascii_downcase)))) | 
          "[\((.modified_timestamp + ($root["timezone-offset"] // 0)) | strftime("%Y-%m-%d %H:%M"))] ID: \(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"' \
-        "$WORKING_DATABASE_FILE")
+        <<< "$DB_CACHE")
     
     if [[ -z "$results" ]]; then
         if [[ -z "$search_name" ]]; then
@@ -1612,6 +1890,74 @@ search_by_name() {
         else
             echo "No bones found matching: $search_name"
         fi
+    else
+        echo "$results"
+    fi
+    
+    echo ""
+    pause
+    
+    if [[ -n "$dir_filter" ]]; then
+        directory_search_menu "$dir_filter"
+    else
+        search_file
+    fi
+}
+
+# Search files by date range
+search_by_date_range() {
+    local dir_filter="${1:-}"
+    echo ""
+    gum style --foreground 212 --border double --padding "0 1" "📅 Search By Date Range"
+    echo "Enter dates in YYYY-MM-DD format (or leave blank for all)."
+    
+    local start_date
+    start_date=$(gum input --placeholder "From (YYYY-MM-DD)" || true)
+    
+    local end_date
+    end_date=$(gum input --placeholder "To (YYYY-MM-DD)" || true)
+    [[ "$end_date" == "-" ]] && end_date="$start_date"
+    
+    local start_ts=0
+    local end_ts=2147483647 # Far in the future
+    
+    if [[ -n "$start_date" ]]; then
+        start_ts=$(date -d "$start_date" +%s 2>/dev/null || echo "error")
+        if [[ "$start_ts" == "error" ]]; then
+            echo "Error: Invalid start date format."
+            pause
+            search_file
+            return
+        fi
+    fi
+    
+    if [[ -n "$end_date" ]]; then
+        # For the end date, we want the end of the day (23:59:59)
+        end_ts=$(date -d "$end_date 23:59:59" +%s 2>/dev/null || echo "error")
+        if [[ "$end_ts" == "error" ]]; then
+            echo "Error: Invalid end date format."
+            pause
+            search_file
+            return
+        fi
+    fi
+    
+    echo ""
+    if [[ -n "$dir_filter" ]]; then
+        gum style --foreground 212 "🎾 Fetch Results In: $dir_filter"
+    else
+        gum style --foreground 212 "🎾 Fetch Results"
+    fi
+    
+    local results
+    results=$(jq -r --argjson start "$start_ts" --argjson end "$end_ts" --arg dir "$dir_filter" \
+        '. as $root | .files | sort_by(.modified_timestamp) | reverse | .[] | 
+         select(($dir == "" or .path == $dir) and (.modified_timestamp >= $start and .modified_timestamp <= $end)) | 
+         "[\((.modified_timestamp + ($root["timezone-offset"] // 0)) | strftime("%Y-%m-%d %H:%M"))] ID: \(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"' \
+        <<< "$DB_CACHE")
+    
+    if [[ -z "$results" ]]; then
+        echo "No bones found in that date range."
     else
         echo "$results"
     fi
@@ -1637,7 +1983,7 @@ list_all_files() {
     fi
     
     local total_files
-    total_files=$(jq --arg dir "$dir_filter" '[.files[] | select($dir == "" or .path == $dir)] | length' "$WORKING_DATABASE_FILE")
+    total_files=$(jq --arg dir "$dir_filter" '[.files[] | select($dir == "" or .path == $dir)] | length' <<< "$DB_CACHE")
     
     if [[ "$total_files" -eq 0 ]]; then
         echo "No bones found."
@@ -1645,7 +1991,7 @@ list_all_files() {
         jq -r --arg dir "$dir_filter" '. as $root | .files | sort_by(.modified_timestamp) | reverse | .[] | 
             select($dir == "" or .path == $dir) | 
             "[\((.modified_timestamp + ($root["timezone-offset"] // 0)) | strftime("%Y-%m-%d %H:%M"))] ID: \(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"' \
-            "$WORKING_DATABASE_FILE"
+            <<< "$DB_CACHE"
         echo ""
         echo "Total bones: $total_files"
     fi
@@ -1690,6 +2036,7 @@ directory_search_menu() {
     choice=$(gum choose --header "🔍 Searching In: $selected_dir" \
         "🏷️ Search By Tag" \
         "📝 Search By Filename" \
+        "📅 Search By Date Range" \
         "📋 List All Files" \
         "❌ Remove Directory Filter" || true)
     
@@ -1701,6 +2048,7 @@ directory_search_menu() {
     case $choice in
         "🏷️ Search By Tag") search_by_tag "$selected_dir";;
         "📝 Search By Filename") search_by_name "$selected_dir";;
+        "📅 Search By Date Range") search_by_date_range "$selected_dir";;
         "📋 List All Files") list_all_files "$selected_dir";;
     esac
 }
@@ -1716,6 +2064,7 @@ organize_bones() {
     organize_choice=$(gum choose --header "Select bones to organize:" \
         "🏷️ By Scent" \
         "📝 By Bone Name" \
+        "📅 By Date Range" \
         "📁 By Kennel (Directory)" \
         "📋 All Buried Bones" \
         "⬅️ Back To Main Menu" || true)
@@ -1729,16 +2078,44 @@ organize_bones() {
     case $organize_choice in
         "🏷️ By Scent")
             local search_tag
-            search_tag=$(gum input --placeholder "Enter scent to organize" || true)
+            search_tag=$(gum input --placeholder "Enter scents to organize (supports AND, OR, NOT)" || true)
             [[ -z "$search_tag" ]] && { organize_bones; return; }
-            matches_json=$(jq -c --arg tag "$search_tag" '.files[] | select(.tags[] | ascii_downcase == ($tag | ascii_downcase))' "$WORKING_DATABASE_FILE")
+            local jq_filter=$(build_tag_query_filter "$search_tag")
+            matches_json=$(jq -c ".files[] | select($jq_filter)" <<< "$DB_CACHE")
             ;;
         "📝 By Bone Name")
             local search_name
             search_name=$(gum input --placeholder "Enter bone name to organize (* for all)" || true)
             [[ "$search_name" == "*" ]] && search_name=""
             [[ -z "$search_name" ]] && { organize_bones; return; }
-            matches_json=$(jq -c --arg name "$search_name" '.files[] | select(.name | ascii_downcase | contains($name | ascii_downcase))' "$WORKING_DATABASE_FILE")
+            matches_json=$(jq -c --arg name "$search_name" '.files[] | select(.name | ascii_downcase | contains($name | ascii_downcase))' <<< "$DB_CACHE")
+            ;;
+        "📅 By Date Range")
+            echo "Enter dates in YYYY-MM-DD format (or leave blank for all)."
+            local start_date
+            start_date=$(gum input --placeholder "From (YYYY-MM-DD)" || true)
+            local end_date
+            end_date=$(gum input --placeholder "To (YYYY-MM-DD)" || true)
+            [[ "$end_date" == "-" ]] && end_date="$start_date"
+            
+            local start_ts=0
+            local end_ts=2147483647
+            
+            if [[ -n "$start_date" ]]; then
+                start_ts=$(date -d "$start_date" +%s 2>/dev/null || echo "error")
+                if [[ "$start_ts" == "error" ]]; then
+                    echo "Error: Invalid start date format."
+                    pause; organize_bones; return
+                fi
+            fi
+            if [[ -n "$end_date" ]]; then
+                end_ts=$(date -d "$end_date 23:59:59" +%s 2>/dev/null || echo "error")
+                if [[ "$end_ts" == "error" ]]; then
+                    echo "Error: Invalid end date format."
+                    pause; organize_bones; return
+                fi
+            fi
+            matches_json=$(jq -c --argjson start "$start_ts" --argjson end "$end_ts" '.files[] | select(.modified_timestamp >= $start and .modified_timestamp <= $end)' <<< "$DB_CACHE")
             ;;
         "📁 By Kennel (Directory)")
             if [[ ! -s "$DIR_CACHE_FILE" ]]; then
@@ -1750,10 +2127,10 @@ organize_bones() {
             local selected_dir
             selected_dir=$(gum choose --header "Select Kennel to organize:" < "$DIR_CACHE_FILE" || true)
             [[ -z "$selected_dir" ]] && { organize_bones; return; }
-            matches_json=$(jq -c --arg dir "$selected_dir" '.files[] | select(.path == $dir)' "$WORKING_DATABASE_FILE")
+            matches_json=$(jq -c --arg dir "$selected_dir" '.files[] | select(.path == $dir)' <<< "$DB_CACHE")
             ;;
         "📋 All Buried Bones")
-            matches_json=$(jq -c '.files[]' "$WORKING_DATABASE_FILE")
+            matches_json=$(jq -c '.files[]' <<< "$DB_CACHE")
             ;;
     esac
     
@@ -1769,7 +2146,7 @@ organize_bones() {
     echo "Selected $count bones for organization."
     echo ""
     local offset
-    offset=$(jq -r '.["timezone-offset"] // 0' "$WORKING_DATABASE_FILE")
+    offset=$(jq -r '.["timezone-offset"] // 0' <<< "$DB_CACHE")
     echo "$matches_json" | jq -r --arg offset "$offset" \
         '((.modified_timestamp + ($offset | tonumber)) | strftime("[%Y-%m-%d %H:%M]")) as $ts |
          "\($ts) ID: \(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end) | \(.name) | Kennel: \(.path) | Scents: \(.tags | join(", "))"'
@@ -1822,7 +2199,7 @@ organize_bones() {
     echo ""
     echo "Building frequency map..."
     local freq_map
-    freq_map=$(jq -r '[.files[].tags[]] | group_by(.) | map({(.[0]): length}) | add' "$WORKING_DATABASE_FILE")
+    freq_map=$(jq -r '[.files[].tags[]] | group_by(.) | map({(.[0]): length}) | add' <<< "$DB_CACHE")
     
     local updated_files_json="[]"
     local removed_ids=()
@@ -1928,21 +2305,19 @@ organize_bones() {
         echo "Updating database records..."
         # This is a bit complex: we need to replace existing entries with updated ones
         # For simplicity, we'll remove old ones and append new ones
-        local tmp_db=$(mktemp)
-        jq --argjson updates "$updated_files_json" '
+        DB_CACHE=$(jq --argjson updates "$updated_files_json" '
             .files |= map(
                 . as $old | 
                 ($updates[] | select(.unique_id == $old.unique_id)) // $old
-            )' "$WORKING_DATABASE_FILE" > "$tmp_db"
-        mv "$tmp_db" "$WORKING_DATABASE_FILE"
+            )' <<< "$DB_CACHE")
+        sync_db_to_disk
         SESSION_MODIFIED=true
         update_dir_cache
     elif [[ "$db_sync" == *"Remove"* && ${#removed_ids[@]} -gt 0 ]]; then
         echo "Removing database records..."
         local ids_json=$(printf '%s\n' "${removed_ids[@]}" | jq -R . | jq -s .)
-        local tmp_db=$(mktemp)
-        jq --argjson ids "$ids_json" '.files |= map(select(.unique_id as $id | ($ids | index($id) | not)))' "$WORKING_DATABASE_FILE" > "$tmp_db"
-        mv "$tmp_db" "$WORKING_DATABASE_FILE"
+        DB_CACHE=$(jq --argjson ids "$ids_json" '.files |= map(select(.unique_id as $id | ($ids | index($id) | not)))' <<< "$DB_CACHE")
+        sync_db_to_disk
         SESSION_MODIFIED=true
         update_dir_cache
     fi
@@ -1971,6 +2346,7 @@ remove_file() {
     remove_choice=$(gum choose \
         "🆔 Remove By ID" \
         "📝 Remove By Bone Name" \
+        "📅 Remove By Date Range" \
         "📁 Remove By Kennel (Directory)" \
         "⬅️ Back To Main Menu" || true)
     
@@ -1982,6 +2358,7 @@ remove_file() {
     case $remove_choice in
         "🆔 Remove By ID") remove_by_id;;
         "📝 Remove By Bone Name") remove_by_name;;
+        "📅 Remove By Date Range") remove_by_date_range;;
         "📁 Remove By Kennel (Directory)") remove_by_directory;;
     esac
 }
@@ -2021,7 +2398,7 @@ remove_by_directory() {
     
     # Check if directory exists in database
     local file_count
-    file_count=$(jq --arg dir "$selected_dir" '[.files[] | select(.path == $dir)] | length' "$WORKING_DATABASE_FILE")
+    file_count=$(jq --arg dir "$selected_dir" '[.files[] | select(.path == $dir)] | length' <<< "$DB_CACHE")
     
     if [[ "$file_count" -eq 0 ]]; then
         echo "No bones found in BoneYARD for kennel: $selected_dir"
@@ -2035,15 +2412,81 @@ remove_by_directory() {
     
     if [[ "$file_count" -lt 10 ]]; then
         echo "Bones to be dug up:"
-        jq -r --arg dir "$selected_dir" '.files[] | select(.path == $dir) | "  - \(.name)"' "$WORKING_DATABASE_FILE"
+        jq -r --arg dir "$selected_dir" '.files[] | select(.path == $dir) | "  - \(.name)"' <<< "$DB_CACHE"
         echo ""
     fi
 
     if gum confirm "Dig up ALL $file_count bones for this kennel from the BoneYARD?"; then
-        jq --arg dir "$selected_dir" 'del(.files[] | select(.path == $dir))' \
-            "$WORKING_DATABASE_FILE" > "$WORKING_DATABASE_FILE.tmp"
-        mv "$WORKING_DATABASE_FILE.tmp" "$WORKING_DATABASE_FILE"
-    SESSION_MODIFIED=true
+        DB_CACHE=$(jq --arg dir "$selected_dir" 'del(.files[] | select(.path == $dir))' \
+            <<< "$DB_CACHE")
+        sync_db_to_disk
+        SESSION_MODIFIED=true
+        update_dir_cache
+        echo "✓ Successfully dug up $file_count bones."
+    else
+        echo "Clean up cancelled."
+    fi
+    
+    echo ""
+    pause
+    main_menu
+}
+
+# Remove entries by date range
+remove_by_date_range() {
+    play_menu_sound
+    echo ""
+    gum style --foreground 196 --border double --padding "0 1" "📅 Remove By Date Range"
+    echo "Enter dates in YYYY-MM-DD format (or leave blank for all)."
+    
+    local start_date
+    start_date=$(gum input --placeholder "From (YYYY-MM-DD)" || true)
+    local end_date
+    end_date=$(gum input --placeholder "To (YYYY-MM-DD)" || true)
+    [[ "$end_date" == "-" ]] && end_date="$start_date"
+    
+    local start_ts=0
+    local end_ts=2147483647
+    
+    if [[ -n "$start_date" ]]; then
+        start_ts=$(date -d "$start_date" +%s 2>/dev/null || echo "error")
+        if [[ "$start_ts" == "error" ]]; then
+            echo "Error: Invalid start date format."
+            pause; remove_file; return
+        fi
+    fi
+    if [[ -n "$end_date" ]]; then
+        end_ts=$(date -d "$end_date 23:59:59" +%s 2>/dev/null || echo "error")
+        if [[ "$end_ts" == "error" ]]; then
+            echo "Error: Invalid end date format."
+            pause; remove_file; return
+        fi
+    fi
+    
+    local file_count
+    file_count=$(jq --argjson start "$start_ts" --argjson end "$end_ts" '[.files[] | select(.modified_timestamp >= $start and .modified_timestamp <= $end)] | length' <<< "$DB_CACHE")
+    
+    if [[ "$file_count" -eq 0 ]]; then
+        echo "No bones found in that date range."
+        pause
+        remove_file
+        return
+    fi
+    
+    echo ""
+    echo "Found $file_count bones in the selected date range."
+    
+    if [[ "$file_count" -lt 10 ]]; then
+        echo "Bones to be dug up:"
+        jq -r --argjson start "$start_ts" --argjson end "$end_ts" '.files[] | select(.modified_timestamp >= $start and .modified_timestamp <= $end) | "  - \(.name)"' <<< "$DB_CACHE"
+        echo ""
+    fi
+
+    if gum confirm "Dig up ALL $file_count bones in this date range from the BoneYARD?"; then
+        DB_CACHE=$(jq --argjson start "$start_ts" --argjson end "$end_ts" 'del(.files[] | select(.modified_timestamp >= $start and .modified_timestamp <= $end))' \
+            <<< "$DB_CACHE")
+        sync_db_to_disk
+        SESSION_MODIFIED=true
         update_dir_cache
         echo "✓ Successfully dug up $file_count bones."
     else
@@ -2071,7 +2514,7 @@ remove_by_id() {
 
     # Check if file exists
     local file_exists
-    file_exists=$(jq --argjson id "$file_id" '.files[] | select(.unique_id == $id)' "$WORKING_DATABASE_FILE")
+    file_exists=$(jq --argjson id "$file_id" '.files[] | select(.unique_id == $id)' <<< "$DB_CACHE")
     
     if [[ -z "$file_exists" ]]; then
         echo "Error: Bone with ID $file_id not found"
@@ -2086,13 +2529,13 @@ remove_by_id() {
     jq -r --argjson id "$file_id" \
         '.files[] | select(.unique_id == $id) | 
          "  Name: \(.name)\n  Kennel: \(.path)\n  Scents: \(.tags | join(", "))"' \
-        "$WORKING_DATABASE_FILE"
+        <<< "$DB_CACHE"
     
     if gum confirm "Dig up this bone from BoneYARD?"; then
-        jq --argjson id "$file_id" 'del(.files[] | select(.unique_id == $id))' \
-            "$WORKING_DATABASE_FILE" > "$WORKING_DATABASE_FILE.tmp"
-        mv "$WORKING_DATABASE_FILE.tmp" "$WORKING_DATABASE_FILE"
-    SESSION_MODIFIED=true
+        DB_CACHE=$(jq --argjson id "$file_id" 'del(.files[] | select(.unique_id == $id))' \
+            <<< "$DB_CACHE")
+        sync_db_to_disk
+        SESSION_MODIFIED=true
         update_dir_cache
         echo "✓ Bone dug up successfully"
     else
@@ -2121,7 +2564,7 @@ remove_by_name() {
     local matches
     matches=$(jq -c --arg name "$search_name" \
         '.files[] | select(($name == "") or (.name | ascii_downcase | contains($name | ascii_downcase)))' \
-        "$WORKING_DATABASE_FILE")
+        <<< "$DB_CACHE")
     
     if [[ -z "$matches" ]]; then
         echo "No bones found matching: $search_name"
@@ -2144,10 +2587,10 @@ remove_by_name() {
         
         echo ""
         if gum confirm "Dig up this bone from BoneYARD?"; then
-            jq --argjson id "$file_id" 'del(.files[] | select(.unique_id == $id))' \
-                "$WORKING_DATABASE_FILE" > "$WORKING_DATABASE_FILE.tmp"
-            mv "$WORKING_DATABASE_FILE.tmp" "$WORKING_DATABASE_FILE"
-    SESSION_MODIFIED=true
+            DB_CACHE=$(jq --argjson id "$file_id" 'del(.files[] | select(.unique_id == $id))' \
+                <<< "$DB_CACHE")
+            sync_db_to_disk
+            SESSION_MODIFIED=true
             echo "✓ Bone dug up successfully"
         else
             echo "Clean up cancelled"
@@ -2177,10 +2620,10 @@ remove_by_name() {
                 
                 echo ""
                 if gum confirm "Dig up this bone from BoneYARD?"; then
-                    jq --argjson id "$file_id" 'del(.files[] | select(.unique_id == $id))' \
-                        "$WORKING_DATABASE_FILE" > "$WORKING_DATABASE_FILE.tmp"
-                    mv "$WORKING_DATABASE_FILE.tmp" "$WORKING_DATABASE_FILE"
-    SESSION_MODIFIED=true
+                    DB_CACHE=$(jq --argjson id "$file_id" 'del(.files[] | select(.unique_id == $id))' \
+                        <<< "$DB_CACHE")
+                    sync_db_to_disk
+                    SESSION_MODIFIED=true
                     update_dir_cache
                     echo "✓ Bone dug up successfully"
                 else
@@ -2336,7 +2779,7 @@ delete_entire_database() {
     
     # Perform deletion
     local current_offset
-    current_offset=$(jq -r '."timezone-offset" // -18000' "$WORKING_DATABASE_FILE" || echo "-18000")
+    current_offset=$(jq -r '."timezone-offset" // -18000' <<< "$DB_CACHE" || echo "-18000")
     
     local new_offset
     echo ""
@@ -2373,16 +2816,16 @@ show_stats() {
     echo "🏘️ Loaded BoneYARD: $DATABASE_FILE"
     
     local total_files
-    total_files=$(jq '.files | length' "$WORKING_DATABASE_FILE")
+    total_files=$(jq '.files | length' <<< "$DB_CACHE")
     
     local total_tags
-    total_tags=$(jq '[.files[].tags[]] | unique | length' "$WORKING_DATABASE_FILE")
+    total_tags=$(jq '[.files[].tags[]] | unique | length' <<< "$DB_CACHE")
     
     echo "🦴 Total Bones: $total_files"
     echo "👃 Unique Scents: $total_tags"
     
     local total_dirs
-    total_dirs=$(jq '[.files[].path] | unique | length' "$WORKING_DATABASE_FILE")
+    total_dirs=$(jq '[.files[].path] | unique | length' <<< "$DB_CACHE")
     echo "🏘️ Unique Kennels: $total_dirs"
 
     if [[ "$total_files" -gt 0 ]]; then
@@ -2390,13 +2833,13 @@ show_stats() {
         gum style --foreground 212 "🕒 Recent Sniffs (Last 5 Buried):"
         jq -r '. as $root | .files | sort_by(.modified_timestamp) | reverse | .[0:5] | .[] | 
             "  - \(.name) (Buried: \((.modified_timestamp + ($root["timezone-offset"] // 0)) | strftime("%Y-%m-%d %H:%M")))"' \
-            "$WORKING_DATABASE_FILE"
+            <<< "$DB_CACHE"
     fi
 
     if [[ "$total_dirs" -gt 0 ]]; then
         echo ""
         gum style --foreground 212 "🏘️ Bones Per Kennel:"
-        jq -r '.files[].path' "$WORKING_DATABASE_FILE" | sort | uniq -c | sort -rn | \
+        jq -r '.files[].path' <<< "$DB_CACHE" | sort | uniq -c | sort -rn | \
             while read -r count path; do
                 printf "  - %-30s : %s bones\n" "$path" "$count"
             done
@@ -2405,7 +2848,7 @@ show_stats() {
     if [[ "$total_tags" -gt 0 ]]; then
         echo ""
         gum style --foreground 212 "👃 Scent Frequency (Strongest First):"
-        jq -r '.files[].tags[]' "$WORKING_DATABASE_FILE" | sort | uniq -c | sort -rn | \
+        jq -r '.files[].tags[]' <<< "$DB_CACHE" | sort | uniq -c | sort -rn | \
             while read -r count tag; do
                 printf "  - %-15s : %s sniffs\n" "$tag" "$count"
             done
@@ -2503,7 +2946,140 @@ switch_yard() {
         esac
     done
 
+    # Release old lock before exec
+    release_db_lock
     exec "$0" "--database" "$new_db" "${new_args[@]}"
+}
+
+# Export the database to CSV or HTML
+export_database() {
+    play_menu_sound
+    echo ""
+    gum style --foreground 212 --border double --padding "0 1" "📤 Export BoneYARD"
+    
+    local format
+    format=$(gum choose "📄 CSV (Spreadsheet)" "🌐 HTML (Web Page)" "⬅️ Back To Main Menu" || echo "⬅️ Back To Main Menu")
+    
+    [[ "$format" == "⬅️ Back To Main Menu" ]] && { main_menu; return; }
+    
+    local default_ext="csv"
+    [[ "$format" == *"HTML"* ]] && default_ext="html"
+    
+    local default_name="boneyard_export_$(date +%Y%m%d_%H%M%S).$default_ext"
+    local export_path
+    export_path=$(gum input --placeholder "Enter destination path (e.g., ~/Documents/$default_name)" --value "$HOME/Documents/$default_name" || true)
+    
+    [[ -z "$export_path" ]] && { export_database; return; }
+    
+    # Expand tilde
+    export_path="${export_path/#\~/$HOME}"
+    
+    # Ensure directory exists
+    local export_dir=$(dirname "$export_path")
+    if [[ ! -d "$export_dir" ]]; then
+        if gum confirm "Directory $export_dir does not exist. Create it?"; then
+            mkdir -p "$export_dir"
+        else
+            echo "Export cancelled."
+            pause
+            export_database
+            return
+        fi
+    fi
+    
+    if [[ "$format" == *"CSV"* ]]; then
+        # Export CSV
+        if jq -r '.files[] | [.unique_id, .name, .path, (.tags | join(", ")), (.modified_timestamp | strftime("%Y-%m-%d %H:%M:%S"))] | @csv' <<< "$DB_CACHE" > "$export_path"; then
+            # Add header
+            sed -i '1i "ID","Name","Kennel","Scents","Buried Date"' "$export_path"
+            echo "✓ BoneYARD exported to CSV: $export_path"
+        else
+            echo "❌ Failed to export CSV."
+        fi
+    else
+        # Export HTML
+        cat <<EOF > "$export_path"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BoneYARD Export</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f1ea; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 4px double #d4a373; }
+        h1 { color: #bc6c25; text-align: center; border-bottom: 2px solid #dda15e; padding-bottom: 10px; }
+        .stats { display: flex; justify-content: space-around; margin-bottom: 30px; background: #fefae0; padding: 15px; border-radius: 10px; border: 1px solid #dda15e; }
+        .stat-item { text-align: center; }
+        .stat-value { font-size: 1.5em; font-weight: bold; color: #606c38; }
+        .stat-label { font-size: 0.9em; color: #283618; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background-color: #dda15e; color: white; padding: 12px; text-align: left; }
+        td { padding: 10px; border-bottom: 1px solid #eee; }
+        tr:hover { background-color: #fefae0; }
+        .scents { font-style: italic; color: #606c38; }
+        .id { font-family: monospace; color: #bc6c25; font-weight: bold; }
+        .footer { margin-top: 30px; text-align: center; font-size: 0.8em; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐾 BoneYARD: Exported Treasures</h1>
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value">$(jq '.files | length' <<< "$DB_CACHE")</div>
+                <div class="stat-label">Bones Buried</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">$(jq '[.files[].tags[]] | unique | length' <<< "$DB_CACHE")</div>
+                <div class="stat-label">Unique Scents</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">$(date "+%Y-%m-%d %H:%M")</div>
+                <div class="stat-label">Export Date</div>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Bone Name</th>
+                    <th>Kennel (Path)</th>
+                    <th>Scents</th>
+                    <th>Buried On</th>
+                </tr>
+            </thead>
+            <tbody>
+EOF
+        
+        jq -r 'def lpad(n; fill): (tostring | if length < n then (n - length) * fill + . else . end); 
+            . as $root | .files | sort_by(.modified_timestamp) | reverse | .[] | 
+            (.unique_id | lpad(4; "0")) as $id |
+            (.tags | join(", ")) as $scents |
+            (.modified_timestamp + ($root["timezone-offset"] // 0) | strftime("%Y-%m-%d %H:%M")) as $date |
+            "                <tr>
+                    <td class=\"id\">\($id)</td>
+                    <td>\(.name)</td>
+                    <td>\(.path)</td>
+                    <td class=\"scents\">\($scents)</td>
+                    <td>\($date)</td>
+                </tr>"' <<< "$DB_CACHE" >> "$export_path"
+        
+        cat <<EOF >> "$export_path"
+            </tbody>
+        </table>
+        <div class="footer">
+            Generated by BoneYARD v$SOFTWARE_VERSION | Made with all the love I'm legally allowed to give!
+        </div>
+    </div>
+</body>
+</html>
+EOF
+        echo "✓ BoneYARD exported to HTML: $export_path"
+    fi
+    
+    pause
+    main_menu
 }
 
 # Backup and restore management
@@ -2513,13 +3089,14 @@ manage_backups() {
     gum style --foreground 212 --border double --padding "0 1" "🐾 Cache Bones (Snapshots)"
     
     local choice
-    choice=$(gum choose "🦴 Bury New Snapshot" "🎾 Fetch From The Cache" "🐾 Paw Through The Cache" "🧹 Clean Up the Cache" "⬅️ Back To Main Menu" || echo "⬅️ Back To Main Menu")
+    choice=$(gum choose "🦴 Bury New Snapshot" "🎾 Fetch From The Cache" "🐾 Paw Through The Cache" "🧹 Clean Up the Cache" "🕒 Auto-Snapshot Config" "⬅️ Back To Main Menu" || echo "⬅️ Back To Main Menu")
     
     case "$choice" in
         "🦴 Bury New Snapshot") create_backup ;;
         "🎾 Fetch From The Cache") restore_backup ;;
         "🐾 Paw Through The Cache") list_backups ;;
         "🧹 Clean Up the Cache") delete_backup ;;
+        "🕒 Auto-Snapshot Config") manage_auto_snapshot_config ;;
         *) main_menu ;;
     esac
 }
@@ -2527,18 +3104,23 @@ manage_backups() {
 list_backups() {
     echo ""
     gum style --foreground 212 --border double --padding "0 1" "🐾 Paw Through The Cache"
-    
+
     if [[ ! -d "$DEFAULT_BACKUP_DIR" ]]; then
         echo "Default backup directory does not exist: $DEFAULT_BACKUP_DIR"
     else
         echo "Yards cached in: $DEFAULT_BACKUP_DIR"
         echo ""
-        
+
+        # Calculate total directory size
+        local total_dir_size=$(du -sh "$DEFAULT_BACKUP_DIR" 2>/dev/null | cut -f1)
+        echo "📏 Total cache size: $total_dir_size"
+        echo ""
+
         local files=()
         while IFS= read -r f; do
             files+=("$f")
-        done < <(ls "$DEFAULT_BACKUP_DIR"/backup_*.json 2>/dev/null | sort -r)
-        
+        done < <(ls "$DEFAULT_BACKUP_DIR"/{backup,auto_snapshot}_*.json 2>/dev/null | sort -r)
+
         if [[ ${#files[@]} -eq 0 ]]; then
             echo "No snapshots found in the default cache."
         else
@@ -2546,13 +3128,15 @@ list_backups() {
                 local fname=$(basename "$f")
                 local ftime=$(date -r "$f" "+%Y-%m-%d %H:%M:%S")
                 local fsize=$(du -h "$f" | cut -f1)
-                printf "  🏘️  %-30s | %s | %s\n" "$fname" "$ftime" "$fsize"
+                # Count bones in snapshot
+                local bone_count=$(jq '.files | length' "$f" 2>/dev/null || echo "0")
+                printf "  🏘️  %-30s | %s | %s | %s bones\n" "$fname" "$ftime" "$fsize" "$bone_count"
             done
             echo ""
             echo "Total snapshots: ${#files[@]}"
         fi
     fi
-    
+
     pause
     manage_backups
 }
@@ -2631,7 +3215,7 @@ restore_backup() {
         local files=()
         while IFS= read -r f; do
             files+=("$f")
-        done < <(ls "$DEFAULT_BACKUP_DIR"/backup_*.json 2>/dev/null | sort -r)
+        done < <(ls "$DEFAULT_BACKUP_DIR"/{backup,auto_snapshot}_*.json 2>/dev/null | sort -r)
         
         if [[ ${#files[@]} -eq 0 ]]; then
             echo "No snapshots found in $DEFAULT_BACKUP_DIR"
@@ -2659,6 +3243,7 @@ restore_backup() {
     
     if gum confirm "Are you sure you want to fetch this yard snapshot?"; then
         if cp "$backup_file" "$WORKING_DATABASE_FILE"; then
+            load_db_to_memory
             typewrite "✓ Yard fetched and restored successfully."
             SESSION_MODIFIED=true
             
@@ -2691,7 +3276,7 @@ delete_backup() {
     local files=()
     while IFS= read -r f; do
         files+=("$f")
-    done < <(ls "$DEFAULT_BACKUP_DIR"/backup_*.json 2>/dev/null | sort -r)
+    done < <(ls "$DEFAULT_BACKUP_DIR"/{backup,auto_snapshot}_*.json 2>/dev/null | sort -r)
     
     if [[ ${#files[@]} -eq 0 ]]; then
         echo "No snapshots found in $DEFAULT_BACKUP_DIR"
@@ -3021,6 +3606,7 @@ main_menu() {
         "🧹 Clean Up the Yard (Remove)"
         "🏘️ Switch Yard"
         "🐾 Cache Bones (Snapshots)"
+        "📤 Export Yard (CSV/HTML)"
         "📊 Pack Stats"
         "📜 Kennel Rules & Changelog"
         "🌋 Incinerate the Yard"
@@ -3067,6 +3653,7 @@ main_menu() {
             ;;
         "👜 Use a Doggy Bag (Save on Exit)")
             # Relaunch with -b added
+            release_db_lock
             exec "$0" "-b" "$@"
             ;;
         "🎾 Fetch Bones (Search)") search_file;;
@@ -3077,6 +3664,7 @@ main_menu() {
         "🧹 Clean Up the Yard (Remove)") remove_file;;
         "🏘️ Switch Yard") switch_yard "$@";;
         "🐾 Cache Bones (Snapshots)") manage_backups;;
+        "📤 Export Yard (CSV/HTML)") export_database;;
         "📊 Pack Stats") show_stats;;
         "📜 Kennel Rules & Changelog") read_license;;
         "🌋 Incinerate the Yard") delete_entire_database;;
@@ -3118,24 +3706,30 @@ main() {
     parse_arguments "$@"
     check_dependencies
     
+    # Acquire lock on the yard to prevent concurrent access
+    acquire_db_lock "$DATABASE_FILE"
+    # Ensure lock is released on exit
+    trap 'release_db_lock' EXIT
+
     # Cleanup stale update info and check for updates
     rm -f "/tmp/boneyard_remote_version"
     grab_remote_version
-    
-    check_database_health
-    check_compatibility
     
     if [[ "$DOGGY_BAG_MODE" == "true" ]]; then
         WORKING_DATABASE_FILE=$(mktemp /tmp/boneyard_doggy_bag_XXXXXX.json)
         if [[ -f "$DATABASE_FILE" ]]; then
             cp "$DATABASE_FILE" "$WORKING_DATABASE_FILE"
         fi
-        # Ensure cleanup on exit
-        trap 'rm -f "$WORKING_DATABASE_FILE"' EXIT
+        # Ensure cleanup on exit (adding to existing trap)
+        trap 'rm -f "$WORKING_DATABASE_FILE"; release_db_lock' EXIT
     fi
     
+    load_db_to_memory
+    check_database_health
+    check_compatibility
     init_database
     update_dir_cache
+    check_auto_snapshot
     double_bark_sfx
     main_menu --no-sound
 }
