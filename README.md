@@ -89,6 +89,7 @@ To run BoneYARD, you'll need the following "toys" installed:
 
 ## 📂 Project Structure
 
+- `VERSION`: Current version for reliable update checking.
 - `boneyard`: A lightweight launcher script.
 - `BoneYARD.sh`: The main launcher that loads the modular scripts.
 - `modules/`: Feature modules sourced by `BoneYARD.sh`:
