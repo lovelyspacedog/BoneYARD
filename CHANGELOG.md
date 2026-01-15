@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.1] - 2026-01-14
+
+### Added
+- **🎭 Enhanced Goodbye Messages**: Complete modularization of farewell phrases with intelligent categorization
+  - 160+ themed goodbye messages across classic puns, motivational, philosophical, cultural, and seasonal categories
+  - Smart holiday detection for Christmas, Hanukkah, Kwanzaa, New Year, Valentine's Day, Easter, Halloween, and seasonal messages
+  - Low-spec machine optimization: Limits to curated selection + 1 message per active holiday for better performance
+  - Cultural inclusivity with international holiday greetings and seasonal awareness
+
 ## [1.4.0] - 2026-01-14
 
 ### Added

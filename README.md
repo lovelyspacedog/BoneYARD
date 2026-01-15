@@ -105,6 +105,7 @@ To run BoneYARD, you'll need the following "toys" installed:
   - `backups.sh`: Snapshot/cache management.
   - `pager.sh`: License/changelog/pager views.
   - `menu.sh`: Main menu and app entrypoint.
+  - `goodbye.sh`: Farewell message management with holiday awareness.
 - `boneyard.json`: The default database file (created automatically if missing).
 - `wordlist.txt`: A local fallback wordlist for pass-phrase generation.
 - `LICENSE`: Full GNU General Public License v3 text.
@@ -137,7 +138,7 @@ You can also sniff out scents directly from the terminal:
 Running `./boneyard --help` provides the following reference:
 
 ```text
-🐾 BoneYARD v1.4.0 (Yappy Archive and Retrieval Database)
+🐾 BoneYARD v1.4.1 (Yappy Archive and Retrieval Database)
 A powerful, interactive TUI system for burying and fetching bones using JSON.
 
 USAGE:

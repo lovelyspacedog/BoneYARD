@@ -31,7 +31,7 @@ CURRENT_LOCK_FILE=""
 BONEYARD_STANDALONE=${BONEYARD_STANDALONE:-false}
 
 # Global Variables
-SOFTWARE_VERSION="1.4.0"
+SOFTWARE_VERSION="1.4.1"
 # This is the version of the database schema. 
 # Backwards compatibility is maintained within the same major version (X.0.0).
 # Software will refuse to run if the major version differs, or if the database 
