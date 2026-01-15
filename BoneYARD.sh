@@ -30,6 +30,9 @@ CURRENT_LOCK_FILE=""
 # Standalone flag (disables updater and module sourcing when true).
 BONEYARD_STANDALONE=${BONEYARD_STANDALONE:-false}
 
+# Global goodbye text array (empty by default, populated by module)
+goodbye_text=()
+
 # Global Variables
 SOFTWARE_VERSION="1.4.1"
 # This is the version of the database schema. 
@@ -108,8 +111,8 @@ load_modules() {
         # shellcheck source=/dev/null
         source "$BONEYARD_MODULE_DIR/goodbye.sh"
     else
-        # Fallback goodbye messages if module not found
-        declare -a goodbye_text=(
+        # Fallback goodbye messages if module not found (global array)
+        goodbye_text=(
             "Woof woof! (Goodbye!)"
             "Tail wags for now!"
             "Stay paw-sitive!"
@@ -171,8 +174,8 @@ generate_standalone() {
             cat "$BONEYARD_MODULE_DIR/goodbye.sh"
         else
             cat << 'EOF'
-# Fallback goodbye messages for standalone builds
-declare -a goodbye_text=(
+# Fallback goodbye messages for standalone builds (global array)
+goodbye_text=(
     "Woof woof! (Goodbye!)"
     "Tail wags for now!"
     "Stay paw-sitive!"

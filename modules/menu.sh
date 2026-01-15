@@ -83,13 +83,13 @@ main_menu() {
         double_bark_sfx
         rm -f "/tmp/boneyard_remote_version"
 
-        # Get a random goodbye message
-        if [[ ${#goodbye_text[@]} -gt 0 ]]; then
-            random_goodbye="$(printf "%s\n" "${goodbye_text[@]}" | shuf -n 1 2>/dev/null || printf "%s\n" "${goodbye_text[@]}" | head -n 1)"
-        else
-            # Ultimate fallback if array is empty
-            random_goodbye="Woof woof! (Goodbye!)"
-        fi
+            # Get a random goodbye message (safe check for unbound variable)
+            if [[ ${goodbye_text[@]+abc} && ${#goodbye_text[@]} -gt 0 ]]; then
+                random_goodbye="$(printf "%s\n" "${goodbye_text[@]}" | shuf -n 1 2>/dev/null || printf "%s\n" "${goodbye_text[@]}" | head -n 1)"
+            else
+                # Ultimate fallback if array is empty or undefined
+                random_goodbye="Woof woof! (Goodbye!)"
+            fi
         typewrite "$random_goodbye"
         exit 0
     fi
@@ -143,11 +143,11 @@ main_menu() {
             double_bark_sfx
             rm -f "/tmp/boneyard_remote_version"
 
-            # Get a random goodbye message
-            if [[ ${#goodbye_text[@]} -gt 0 ]]; then
+            # Get a random goodbye message (safe check for unbound variable)
+            if [[ ${goodbye_text[@]+abc} && ${#goodbye_text[@]} -gt 0 ]]; then
                 random_goodbye="$(printf "%s\n" "${goodbye_text[@]}" | shuf -n 1 2>/dev/null || printf "%s\n" "${goodbye_text[@]}" | head -n 1)"
             else
-                # Ultimate fallback if array is empty
+                # Ultimate fallback if array is empty or undefined
                 random_goodbye="Woof woof! (Goodbye!)"
             fi
             typewrite "$random_goodbye"

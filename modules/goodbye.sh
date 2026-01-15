@@ -21,7 +21,7 @@ fi
 : "${total_ram_gb:=2}"
 
 # Goodbye phrases; yeah I know they're cheesy, but I'm a dog person.
-declare -a goodbye_text=(
+goodbye_text=(
     # Basic fallback messages in case conditional logic fails
     "Woof woof! (Goodbye!)"
     "Tail wags for now!"
