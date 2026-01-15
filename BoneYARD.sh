@@ -68,8 +68,7 @@ load_modules() {
         "export.sh" \
         "backups.sh" \
         "pager.sh" \
-        "menu.sh" \
-        "goodbye.sh"; do
+        "menu.sh"; do
         if [[ ! -f "$BONEYARD_MODULE_DIR/$module" ]]; then
             missing+=("$module")
         fi
@@ -105,8 +104,21 @@ load_modules() {
     source "$BONEYARD_MODULE_DIR/pager.sh"
     # shellcheck source=/dev/null
     source "$BONEYARD_MODULE_DIR/menu.sh"
-    # shellcheck source=/dev/null
-    source "$BONEYARD_MODULE_DIR/goodbye.sh"
+
+    # Load goodbye.sh with fallback
+    if [[ -f "$BONEYARD_MODULE_DIR/goodbye.sh" ]]; then
+        # shellcheck source=/dev/null
+        source "$BONEYARD_MODULE_DIR/goodbye.sh"
+    else
+        # Fallback goodbye messages if module not found
+        declare -a goodbye_text=(
+            "Woof woof! (Goodbye!)"
+            "Tail wags for now!"
+            "Stay paw-sitive!"
+            "Bark at you later!"
+            "Paws for thought!"
+        )
+    fi
 }
 
 generate_standalone() {
@@ -154,7 +166,22 @@ generate_standalone() {
         echo ""
         cat "$BONEYARD_MODULE_DIR/menu.sh"
         echo ""
-        cat "$BONEYARD_MODULE_DIR/goodbye.sh"
+
+        # Handle goodbye.sh with fallback for standalone builds
+        if [[ -f "$BONEYARD_MODULE_DIR/goodbye.sh" ]]; then
+            cat "$BONEYARD_MODULE_DIR/goodbye.sh"
+        else
+            cat << 'EOF'
+# Fallback goodbye messages for standalone builds
+declare -a goodbye_text=(
+    "Woof woof! (Goodbye!)"
+    "Tail wags for now!"
+    "Stay paw-sitive!"
+    "Bark at you later!"
+    "Paws for thought!"
+)
+EOF
+        fi
         echo ""
         awk '/^# === MAIN START ===/{flag=1;next} /^# === MAIN END ===/{flag=0} flag{print}' "$SCRIPT_DIR/BoneYARD.sh"
     } > "$temp_output"
