@@ -347,9 +347,9 @@ delete_entire_database() {
             words+=("$word")
         done < <(printf '%s\n' "${fallback_words[@]}" | shuf)
 
-        # Randomly capitalize one word (0-11)
+        # Randomly make one word ALL UPPERCASE (0-11)
         local random_idx=$((RANDOM % 12))
-        words[$random_idx]=$(echo "${words[$random_idx]}" | sed 's/./\U&/')
+        words[$random_idx]=$(echo "${words[$random_idx]}" | tr '[:lower:]' '[:upper:]')
     fi
     
     local line1="${words[0]} ${words[1]} ${words[2]} ${words[3]}"
