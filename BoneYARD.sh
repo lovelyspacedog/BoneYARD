@@ -49,68 +49,6 @@ WITH_DIR=false
 WITH_DIR_SEP=","
 CONTAINS_SEARCH=false
 
-# Goodbye phrases; yeah I know they're cheesy, but I'm a dog person.
-declare -a goodbye_text=(
-    "Woof woof! (Goodbye!)"
-    "Tail wags for now!"
-    "Catch you at the park!"
-    "See you later, pup!"
-    "Bone-voyage!"
-    "Stay paw-sitive!"
-    "Paws out!"
-    "Fur-well!"
-    "Un-leash the fun until next time!"
-    "Stop, drop, and roll over!"
-    "Hope your day is paw-some!"
-    "Bark at you later!"
-    "Have a howling good time!"
-    "Don't work too hard, stay ruff!"
-    "Keep your tail held high!"
-    "Stay furry, my friend!"
-    "A round of a-paws for your work today!"
-    "Fur-ever yours!"
-    "Sniff you soon!"
-    "Be the good boy I know you are!"
-    "Time to go for a walkies!"
-    "Back to the kennel!"
-    "Rest your paws!"
-    "Stay fetching!"
-    "Don't stop re-triever-ing!"
-    "Paws and reflect on a job well done!"
-    "You're the leader of the pack!"
-    "Wag more, bark less!"
-    "Life is ruff, but you're doing great!"
-    "Everything is paw-sible!"
-    "You're a real treat!"
-    "No more digging for today!"
-    "Go fetch some rest!"
-    "Stay paws-ed until we meet again!"
-    "A-woooooo! (See ya!)"
-    "Keep on wagging!"
-    "Hope your dreams are full of squirrels!"
-    "Keep your nose to the ground!"
-    "Stay loyal to the yard!"
-    "You've earned a gold medal in fetching!"
-    "Quit hounding me and go play!"
-    "See you in the dog days!"
-    "You're the top dog!"
-    "Don't let the cat get your tongue!"
-    "Pawsitively finished for now!"
-    "Time to curl up and nap!"
-    "Lick you later!"
-    "Sniff out some fun!"
-    "Keep your ears up!"
-    "Stay paw-some!"
-    "Woofing you all the best!"
-    "Catch you on the flip-flop (or the flip-paw)!"
-    "Happy trails and wagging tails!"
-    "Don't bark up the wrong tree!"
-    "You're a fur-midable human!"
-    "Stay dogged in your pursuits!"
-    "A wagging tail is a happy heart!"
-    "Chew on that until next time!"
-    "Paws for thought!"
-)
 # === GLOBALS END ===
 
 BONEYARD_MODULE_DIR="$SCRIPT_DIR/modules"
@@ -130,7 +68,8 @@ load_modules() {
         "export.sh" \
         "backups.sh" \
         "pager.sh" \
-        "menu.sh"; do
+        "menu.sh" \
+        "goodbye.sh"; do
         if [[ ! -f "$BONEYARD_MODULE_DIR/$module" ]]; then
             missing+=("$module")
         fi
@@ -166,6 +105,8 @@ load_modules() {
     source "$BONEYARD_MODULE_DIR/pager.sh"
     # shellcheck source=/dev/null
     source "$BONEYARD_MODULE_DIR/menu.sh"
+    # shellcheck source=/dev/null
+    source "$BONEYARD_MODULE_DIR/goodbye.sh"
 }
 
 generate_standalone() {
@@ -212,6 +153,8 @@ generate_standalone() {
         cat "$BONEYARD_MODULE_DIR/pager.sh"
         echo ""
         cat "$BONEYARD_MODULE_DIR/menu.sh"
+        echo ""
+        cat "$BONEYARD_MODULE_DIR/goodbye.sh"
         echo ""
         awk '/^# === MAIN START ===/{flag=1;next} /^# === MAIN END ===/{flag=0} flag{print}' "$SCRIPT_DIR/BoneYARD.sh"
     } > "$temp_output"
