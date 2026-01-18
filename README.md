@@ -24,7 +24,7 @@ BoneYARD uses dumb doggo terminology, such as:
 
 ## ✨ Main Features
 
-- **🎾 Fetch Bones**: Highly flexible search system. Filter by scent, bone name, kennel, or date range. Advanced boolean scent queries (AND, OR, NOT) supported. (Now #1 priority in the main menu).
+- **🎾 Fetch Bones**: Highly flexible search system. Filter by scent, bone name, kennel, or date range. Supports advanced boolean scent queries (AND, OR, NOT) and **Fuzzy Scent Matching**. (Now #1 priority in the main menu).
 - **🦴 Bury New Bone**: Pick a file using `ranger` and assign searchable scents.
 - **🐕 Bury Entire Litter**: Batch-tag an entire kennel with interactive copy, undo, skip, and "all" functionality. Now features **Smart Tagging** (duplicate detection) and a **Session Scents Tracker**.
 - **👃 Update Scents**: Quickly update or add new scents to any bone already in the yard.
@@ -139,7 +139,7 @@ You can also sniff out scents directly from the terminal:
 Running `./boneyard --help` provides the following reference:
 
 ```text
-🐾 BoneYARD v1.4.2 (Yappy Archive and Retrieval Database)
+🐾 BoneYARD v1.5.0 (Yappy Archive and Retrieval Database)
 A powerful, interactive TUI system for burying and fetching bones using JSON.
 
 USAGE:
@@ -170,7 +170,7 @@ OPTIONS:
 
 MAIN FEATURES:
   Fetch Bones         Filter by scent, bone name (contains), kennel, or date.
-                     Scent search supports AND, OR, NOT (e.g. bash AND script).
+                     Scent search supports AND, OR, NOT and Fuzzy Scent Matching.
   Bury New Bone       Pick a bone using ranger and assign searchable scents.
   Bury Entire Litter  Batch-bury an entire kennel with interactive 
                       copy/undo/skip/all functionality.
@@ -213,6 +213,12 @@ ENVIRONMENT:
 
 Copyright (c) 2025-2026 Pup Tony under GPLv3.
 ```
+
+## 🎒 New in v1.5.0: Fuzzy Scent Matching
+BoneYARD v1.5.0 introduces **Fuzzy Scent Matching**, making it easier than ever to discover your buried treasures:
+- **Fuzzy Fetching**: Use `gum filter` to browse all unique scents and find bones even if you don't remember the exact tag name.
+- **Fuzzy Edit Selection**: Quickly locate bones for re-tagging by fuzzy-searching through your existing scents.
+- **Improved discovery**: No more typing out long tag names manually!
 
 ## 🎒 New in v1.4.2: Optimized Standalone Generation
 BoneYARD v1.4.2 introduces significant improvements to standalone script generation:

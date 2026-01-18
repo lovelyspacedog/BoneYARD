@@ -727,6 +727,11 @@ play_menu_sound() {
     command -v play &> /dev/null && play -q -n synth 0.1 sine 600 fade 0 0.1 0.05 vol 0.25 < /dev/null > /dev/null 2>&1 &
 }
 
+# Get all unique tags from the database
+get_all_tags() {
+    jq -r '.files[].tags[]' <<< "$DB_CACHE" | sort -u
+}
+
 # Get the next unique ID
 get_next_id() {
     local max_id

@@ -34,7 +34,7 @@ BONEYARD_STANDALONE=${BONEYARD_STANDALONE:-false}
 goodbye_text=()
 
 # Global Variables
-SOFTWARE_VERSION="1.4.2"
+SOFTWARE_VERSION="1.5.0"
 # This is the version of the database schema. 
 # Backwards compatibility is maintained within the same major version (X.0.0).
 # Software will refuse to run if the major version differs, or if the database 

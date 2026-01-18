@@ -530,6 +530,7 @@ edit_tags() {
     local edit_choice
     edit_choice=$(gum choose --header "👃 Update Scents" \
         "🏷️ Find By Scent" \
+        "🐾 Fuzzy Scent Match" \
         "📝 Find By Bone Name" \
         "📅 Find By Date Range" \
         "📁 Filter By Kennel (Directory)" \
@@ -543,6 +544,7 @@ edit_tags() {
     
     case $edit_choice in
         "🏷️ Find By Scent") edit_by_tag;;
+        "🐾 Fuzzy Scent Match") edit_by_fuzzy_tag;;
         "📝 Find By Bone Name") edit_by_name;;
         "📅 Find By Date Range") edit_by_date_range;;
         "📁 Filter By Kennel (Directory)") edit_filter_by_directory;;
@@ -584,10 +586,21 @@ select_and_update_file() {
 # Edit by tag
 edit_by_tag() {
     local dir_filter="${1:-}"
+    local search_tag="${2:-}"
     echo ""
-    local search_tag
-    search_tag=$(gum input --placeholder "Enter scents to find for updating (supports AND, OR, NOT)" || true)
-    [[ -z "$search_tag" ]] && { edit_tags; return; }
+    
+    if [[ -z "$search_tag" ]]; then
+        search_tag=$(gum input --placeholder "Enter scents to find for updating (supports AND, OR, NOT)" || true)
+    fi
+    
+    if [[ -z "$search_tag" ]]; then
+        if [[ -n "$dir_filter" ]]; then
+            edit_directory_menu "$dir_filter"
+        else
+            edit_tags
+        fi
+        return
+    fi
     
     local jq_filter
     jq_filter=$(build_tag_query_filter "$search_tag")
@@ -604,6 +617,42 @@ edit_by_tag() {
     else
         edit_tags
     fi
+}
+
+# Edit by fuzzy tag
+edit_by_fuzzy_tag() {
+    local dir_filter="${1:-}"
+    echo ""
+    
+    # Get all tags
+    local all_tags
+    all_tags=$(get_all_tags)
+    
+    if [[ -z "$all_tags" ]]; then
+        echo "No scents found in the yard."
+        pause
+        if [[ -n "$dir_filter" ]]; then
+            edit_directory_menu "$dir_filter"
+        else
+            edit_tags
+        fi
+        return
+    fi
+    
+    local selected_tag
+    selected_tag=$(echo "$all_tags" | gum filter --placeholder "Fuzzy find a scent to update..." --indicator "🦴" --match.foreground 212 || true)
+    
+    if [[ -z "$selected_tag" ]]; then
+        if [[ -n "$dir_filter" ]]; then
+            edit_directory_menu "$dir_filter"
+        else
+            edit_tags
+        fi
+        return
+    fi
+    
+    # Call edit_by_tag with the selected tag
+    edit_by_tag "$dir_filter" "$selected_tag"
 }
 
 # Edit by name
@@ -733,6 +782,7 @@ edit_directory_menu() {
     local choice
     choice=$(gum choose --header "📁 Editing In: $selected_dir" \
         "🏷️ Find By Tag" \
+        "🐾 Fuzzy Scent Match" \
         "📝 Find By Filename" \
         "📅 Find By Date Range" \
         "📋 List All Files" \
@@ -745,6 +795,7 @@ edit_directory_menu() {
     
     case $choice in
         "🏷️ Find By Tag") edit_by_tag "$selected_dir";;
+        "🐾 Fuzzy Scent Match") edit_by_fuzzy_tag "$selected_dir";;
         "📝 Find By Filename") edit_by_name "$selected_dir";;
         "📅 Find By Date Range") edit_by_date_range "$selected_dir";;
         "📋 List All Files") edit_list_all_files "$selected_dir";;

@@ -7,6 +7,7 @@ search_file() {
     local search_choice
     search_choice=$(gum choose --header "🎾 Fetch Bones" \
         "🏷️ Search By Scent" \
+        "🐾 Fuzzy Scent Match" \
         "📝 Search By Bone Name" \
         "📅 Search By Date Range" \
         "📁 Filter By Kennel (Directory)" \
@@ -20,6 +21,7 @@ search_file() {
     
     case $search_choice in
         "🏷️ Search By Scent") search_by_tag;;
+        "🐾 Fuzzy Scent Match") search_by_fuzzy_tag;;
         "📝 Search By Bone Name") search_by_name;;
         "📅 Search By Date Range") search_by_date_range;;
         "📁 Filter By Kennel (Directory)") filter_by_directory;;
@@ -30,9 +32,12 @@ search_file() {
 # Search files by tag
 search_by_tag() {
     local dir_filter="${1:-}"
+    local search_tag="${2:-}"
     echo ""
-    local search_tag
-    search_tag=$(gum input --placeholder "Enter scents to fetch (supports AND, OR, NOT, e.g. bash AND script)" || true)
+    
+    if [[ -z "$search_tag" ]]; then
+        search_tag=$(gum input --placeholder "Enter scents to fetch (supports AND, OR, NOT, e.g. bash AND script)" || true)
+    fi
     
     if [[ -z "$search_tag" ]]; then
         if [[ -n "$dir_filter" ]]; then
@@ -74,6 +79,42 @@ search_by_tag() {
     else
         search_file
     fi
+}
+
+# Fuzzy search files by tag
+search_by_fuzzy_tag() {
+    local dir_filter="${1:-}"
+    echo ""
+    
+    # Get all tags
+    local all_tags
+    all_tags=$(get_all_tags)
+    
+    if [[ -z "$all_tags" ]]; then
+        echo "No scents found in the yard."
+        pause
+        if [[ -n "$dir_filter" ]]; then
+            directory_search_menu "$dir_filter"
+        else
+            search_file
+        fi
+        return
+    fi
+    
+    local selected_tag
+    selected_tag=$(echo "$all_tags" | gum filter --placeholder "Fuzzy find a scent..." --indicator "🦴" --match.foreground 212 || true)
+    
+    if [[ -z "$selected_tag" ]]; then
+        if [[ -n "$dir_filter" ]]; then
+            directory_search_menu "$dir_filter"
+        else
+            search_file
+        fi
+        return
+    fi
+    
+    # Call search_by_tag with the selected tag
+    search_by_tag "$dir_filter" "$selected_tag"
 }
 
 # Search files by name
@@ -259,6 +300,7 @@ directory_search_menu() {
     local choice
     choice=$(gum choose --header "🔍 Searching In: $selected_dir" \
         "🏷️ Search By Tag" \
+        "🐾 Fuzzy Scent Match" \
         "📝 Search By Filename" \
         "📅 Search By Date Range" \
         "📋 List All Files" \
@@ -271,6 +313,7 @@ directory_search_menu() {
     
     case $choice in
         "🏷️ Search By Tag") search_by_tag "$selected_dir";;
+        "🐾 Fuzzy Scent Match") search_by_fuzzy_tag "$selected_dir";;
         "📝 Search By Filename") search_by_name "$selected_dir";;
         "📅 Search By Date Range") search_by_date_range "$selected_dir";;
         "📋 List All Files") list_all_files "$selected_dir";;

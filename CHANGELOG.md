@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-01-18
+
+### Added
+- **🔍 Fuzzy Scent Matching**:
+  - Integrated `gum filter` for "Fuzzy Fetching" of bones by scent.
+  - New "Fuzzy Scent Match" option in Fetch and Update menus for quick discovery.
+  - Automated tag extraction helper `get_all_tags` for consistent scent browsing.
+
 ## [1.4.2] - 2026-01-15
 
 ### Fixed
