@@ -220,6 +220,7 @@ perform_update() {
     fi
 
     local remote_v="$1"
+    local specific_commit="$2"  # Optional: specific commit hash to checkout
     local update_dir="$SCRIPT_DIR"
     
     clear
@@ -236,9 +237,9 @@ perform_update() {
 
     echo "Fetching the new yard files..."
     local download_dir="/tmp/boneyard-update-$(date +%s)"
-    
+
     # Don't hide git errors; the user needs to see why it failed (e.g., network, proxy)
-    if ! git clone --depth 1 https://github.com/lovelyspacedog/BoneYARD.git "$download_dir"; then
+    if ! git clone https://github.com/lovelyspacedog/BoneYARD.git "$download_dir"; then
         echo ""
         gum style --foreground 196 "❌ Error: Failed to fetch the new yard files."
         echo "Please check your internet connection or git configuration."
@@ -246,6 +247,28 @@ perform_update() {
         pause
         main_menu
         return 1
+    fi
+
+    # If a specific commit was provided, checkout to that commit
+    if [[ -n "$specific_commit" ]]; then
+        echo "Checking out specific version: $specific_commit"
+        cd "$download_dir"
+        if ! git checkout "$specific_commit"; then
+            echo ""
+            gum style --foreground 196 "❌ Error: Failed to checkout commit $specific_commit."
+            echo "Please verify the commit hash is valid."
+            rm -rf "$download_dir"
+            pause
+            main_menu
+            return 1
+        fi
+        cd - >/dev/null
+    else
+        # For latest version, use shallow clone to save bandwidth
+        cd "$download_dir"
+        git checkout HEAD~1 2>/dev/null || true  # Try to go back one commit if possible
+        git checkout - 2>/dev/null || true      # Go back to latest
+        cd - >/dev/null
     fi
 
     # Safety Check: Check for clutter in the script directory
@@ -428,7 +451,7 @@ check_compatibility() {
             if [[ $remote_res -ne 2 ]]; then
                 echo "A new doghouse ($remote_v) is available that supports this database."
                 if gum confirm "Would you like to fetch the new doghouse now?"; then
-                    perform_update "$remote_v"
+                    perform_update "$remote_v" "$BONEYARD_UPGRADE_COMMIT"
                 fi
             fi
         fi
