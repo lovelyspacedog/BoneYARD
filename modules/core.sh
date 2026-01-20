@@ -284,6 +284,9 @@ UPDATE_MODE="$update_mode"
 echo "Applying the new coat of paint to the kennel..."
 sleep 1
 
+# Enable dotglob to match hidden files (like .gitignore)
+shopt -s dotglob
+
 # Explicit check for boneyard.json to ensure buried treasures are safe
 if [[ "\$UPDATE_MODE" == "minimal" ]]; then
     echo "Minimal Update: Moving BoneYARD.sh and modules..."
