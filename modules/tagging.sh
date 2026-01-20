@@ -618,10 +618,16 @@ bulk_update_file_tags() {
     
     # Get all unique IDs to update in one go
     local ids_json
-    ids_json=$(echo "$results_json" | jq -s -c '[.[].unique_id]')
+    ids_json=$(echo "$results_json" | jq -s -c '[.[].unique_id]' 2>/dev/null || echo "[]")
+
+    if [[ "$ids_json" == "[]" ]]; then
+        echo "No valid bone IDs found to update."
+        return 1
+    fi
 
     # Process ALL files in a single JQ pass for efficiency and stability
-    DB_CACHE=$(jq --argjson ids "$ids_json" \
+    local updated_db
+    updated_db=$(jq --argjson ids "$ids_json" \
                   --argjson add "$add_json" \
                   --argjson rem "$rem_json" \
                   --argjson keep "$keep_original" \
@@ -637,8 +643,14 @@ bulk_update_file_tags() {
             else
                 .
             end
-        )' <<< "$DB_CACHE")
+        )' <<< "$DB_CACHE" 2>/dev/null || echo "")
 
+    if [[ -z "$updated_db" ]]; then
+        echo "Error: Failed to process bulk updates. Database remains unchanged."
+        return 1
+    fi
+
+    DB_CACHE="$updated_db"
     sync_db_to_disk
     SESSION_MODIFIED=true
     update_dir_cache

@@ -111,7 +111,17 @@ load_db_to_memory() {
 
 # Sync the memory cache to disk
 sync_db_to_disk() {
-    echo "$DB_CACHE" > "$WORKING_DATABASE_FILE"
+    [[ -z "$DB_CACHE" ]] && return 1
+    local temp_db="${WORKING_DATABASE_FILE}.tmp"
+    # Verify DB_CACHE is valid JSON before writing
+    if echo "$DB_CACHE" | jq -e '.' > "$temp_db" 2>/dev/null; then
+        mv "$temp_db" "$WORKING_DATABASE_FILE"
+    else
+        rm -f "$temp_db"
+        # We don't want to exit here as it might be a temporary issue, but we must log it
+        echo "Error: Attempted to sync invalid database cache to disk. Operation aborted to prevent corruption." >&2
+        return 1
+    fi
 }
 
 # Parse a tag query string into a jq select expression
@@ -494,10 +504,10 @@ select_timezone_offset() {
             if [[ "$manual" =~ ^-?[0-9]+$ ]]; then
                 echo "$manual"
             else
-                echo "$current_offset"
+                echo "${current_offset:-0}"
             fi
             ;;
-        *) echo "$current_offset" ;;
+        *) echo "${current_offset:-0}" ;;
     esac
 }
 
@@ -594,29 +604,33 @@ init_database() {
     if [[ ! -f "$WORKING_DATABASE_FILE" ]]; then
         # New database - ask for offset
         offset=$(select_timezone_offset "0" "true")
+        [[ -z "$offset" ]] && offset=0
     elif [[ -z "$offset" ]]; then
         # Force re-init but no offset provided, use existing
         offset=$(jq -r '."timezone-offset" // 0' <<< "$DB_CACHE" 2>/dev/null || echo "0")
+        [[ -z "$offset" || "$offset" == "null" ]] && offset=0
     fi
 
     if [[ ! -f "$WORKING_DATABASE_FILE" || "$force" == "true" ]]; then
-        cat <<EOF | jq '.' > "$WORKING_DATABASE_FILE"
-{
-  "version": "$DATABASE_VERSION",
-  "timezone-offset": $offset,
-  "_comment": {
-    "1": "This is the timezone offset for the BoneYARD. It is used to convert the modified timestamp to the local timezone.",
-    "2": "Use a timezone offset of -18000 for EST (-5 hours), or -14400 for EDT (-4 hours).",
-    "3": "Units are seconds since epoch."
-  },
-  "files": [],
-  "auto-snapshot": {
-    "enabled": false,
-    "interval": "1d",
-    "last-run": 0
-  }
-}
-EOF
+        jq -n \
+            --arg ver "$DATABASE_VERSION" \
+            --argjson offset "$offset" \
+            '{
+                version: $ver,
+                "timezone-offset": $offset,
+                "_comment": {
+                    "1": "This is the timezone offset for the BoneYARD. It is used to convert the modified timestamp to the local timezone.",
+                    "2": "Use a timezone offset of -18000 for EST (-5 hours), or -14400 for EDT (-4 hours).",
+                    "3": "Units are seconds since epoch."
+                },
+                files: [],
+                "auto-snapshot": {
+                    enabled: false,
+                    interval: "1d",
+                    "last-run": 0
+                }
+            }' > "$WORKING_DATABASE_FILE"
+        
         echo "BoneYARD initialized at $DATABASE_FILE with offset $offset"
         SESSION_MODIFIED=true
         load_db_to_memory

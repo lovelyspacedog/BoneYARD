@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.7] - 2026-01-20
+
+### Fixed
+- **🛡️ Database Resilience Overhaul**: Implemented comprehensive safeguards to prevent yard corruption.
+  - **Atomic Writes**: Database updates now use temporary files and atomic moves.
+  - **Pre-Sync Validation**: Data is verified as valid JSON before being written to disk.
+  - **Safer Initialization**: Rewrote database creation logic to use `jq -n` for guaranteed syntax correctness.
+  - **Bulk Update Guard**: Added defensive checks to the bulk update engine to prevent partial or empty data writes.
+
 ## [1.5.6] - 2026-01-20
 
 ### Fixed
