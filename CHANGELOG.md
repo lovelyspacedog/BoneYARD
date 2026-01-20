@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.6] - 2026-01-20
+
+### Fixed
+- **🐕 Bulk Update Stability**: Overhauled the bulk scent update engine to be significantly faster and more stable. 
+  - Replaced the individual per-file database writes with a single-pass batch update.
+  - Fixed JQ indexing errors that occurred when processing multiple bones.
+
 ## [1.5.5] - 2026-01-20
 
 ### Fixed

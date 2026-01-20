@@ -616,28 +616,28 @@ bulk_update_file_tags() {
     local timestamp
     timestamp=$(date +%s)
     
-    # Process each file
-    local updated_count=0
-    while read -r file_obj; do
-        local file_id=$(echo "$file_obj" | jq -r '.unique_id')
-        
-        # Process in JQ for robustness and case-insensitivity
-        DB_CACHE=$(jq --argjson id "$file_id" \
-                      --argjson add "$add_json" \
-                      --argjson rem "$rem_json" \
-                      --argjson keep "$keep_original" \
-                      --argjson ts "$timestamp" '
-            (.files[] | select(.unique_id == $id)) |= (
+    # Get all unique IDs to update in one go
+    local ids_json
+    ids_json=$(echo "$results_json" | jq -s -c '[.[].unique_id]')
+
+    # Process ALL files in a single JQ pass for efficiency and stability
+    DB_CACHE=$(jq --argjson ids "$ids_json" \
+                  --argjson add "$add_json" \
+                  --argjson rem "$rem_json" \
+                  --argjson keep "$keep_original" \
+                  --argjson ts "$timestamp" '
+        .files |= map(
+            if .unique_id as $id | ($ids | index($id)) then
                 .tags as $orig |
                 (if $keep then $orig else [] end) as $base |
                 (($base + $add) | unique) as $added |
                 ($rem | map(ascii_downcase)) as $rem_low |
                 ($added | map(select(. as $t | ($rem_low | index($t | ascii_downcase) | not)))) as $final |
                 .tags = $final | .modified_timestamp = $ts
-            )' <<< "$DB_CACHE")
-        
-        updated_count=$((updated_count + 1))
-    done < <(echo "$results_json" | jq -c '.[]')
+            else
+                .
+            end
+        )' <<< "$DB_CACHE")
 
     sync_db_to_disk
     SESSION_MODIFIED=true
@@ -645,7 +645,7 @@ bulk_update_file_tags() {
     double_bark_sfx
     
     echo ""
-    echo "✓ Successfully updated $updated_count bones in the yard!"
+    echo "✓ Successfully updated $count bones in the yard!"
 }
 
 # Edit tags for an existing file
