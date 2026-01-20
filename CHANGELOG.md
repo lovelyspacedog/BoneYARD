@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.5] - 2026-01-20
+
+### Fixed
+- **🐕 Script Stability**: Fixed a critical Bash syntax error in the tagging module caused by improper quote escaping in the bulk edit menu.
+
 ## [1.5.4] - 2026-01-20
 
 ### Fixed
