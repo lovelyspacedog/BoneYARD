@@ -139,7 +139,7 @@ You can also sniff out scents directly from the terminal:
 Running `./boneyard --help` provides the following reference:
 
 ```text
-🐾 BoneYARD v1.5.0 (Yappy Archive and Retrieval Database)
+🐾 BoneYARD v1.5.1 (Yappy Archive and Retrieval Database)
 A powerful, interactive TUI system for burying and fetching bones using JSON.
 
 USAGE:
@@ -213,6 +213,11 @@ ENVIRONMENT:
 
 Copyright (c) 2025-2026 Pup Tony under GPLv3.
 ```
+
+## 🎒 New in v1.5.1: Bug Fixes & Stability
+BoneYARD v1.5.1 includes important fixes from the latest merge:
+- **State Preservation**: Fixed issues where yard state could be lost during switching or Doggy Bag transitions.
+- **Updater Improvements**: Corrected handling of hidden files during the update process.
 
 ## 🎒 New in v1.5.0: Fuzzy Scent Matching
 BoneYARD v1.5.0 introduces **Fuzzy Scent Matching**, making it easier than ever to discover your buried treasures:

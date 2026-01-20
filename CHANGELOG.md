@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-01-20
+
+### Fixed
+- **🛠️ Obvious project bugs**: (Merge pull request #1 from lovelyspacedog/cursor/obvious-project-bugs-22b5)
+  - Fixed state loss in `switch_yard` and `doggy_bag` mode when transitioning between yards.
+  - Resolved issues with hidden files being incorrectly handled by the auto-updater.
+
 ## [1.5.0] - 2026-01-18
 
 ### Added
