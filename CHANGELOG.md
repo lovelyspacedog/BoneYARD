@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.3] - 2026-01-20
+
+### Fixed
+- **🐕 Bulk Scent Selection Bug**:
+  - Fixed `gum` flag parsing errors when selecting individual bones for scent updates.
+  - Fixed `jq` JSON argument errors caused by malformed file ID extraction.
+  - Improved reliability of bulk scent editing selection menu.
+
 ## [1.5.2] - 2026-01-20
 
 ### Added

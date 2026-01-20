@@ -477,7 +477,11 @@ tag_entire_directory() {
 
 # Update tags for an existing file
 update_file_tags() {
-    local file_id=$1
+    local file_id="${1:-}"
+    if [[ -z "$file_id" ]]; then
+        echo "Error: No bone ID provided for update."
+        return 1
+    fi
     
     echo ""
     gum style --foreground 212 --border double --padding "0 1" "👃 Update Scents"
@@ -692,20 +696,23 @@ select_and_update_file() {
     else
         play_menu_sound
         local selection
-        selection=$(echo "$results_json" | jq -r '"\(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end): \(.name) (\(.path)) [\(.tags | join(", "))]"' | \
-            gum choose --header "🔍 Found $count bones. Choose an action:" \
-            "🐕 Bulk Edit Scents (All $count Bones)" \
-            "---------------------------------------" \
-            $(cat) || true)
+        # Safer: Pipe the choices into gum instead of passing them as arguments
+        selection=$( {
+            echo "🐕 Bulk Edit Scents (All $count Bones)"
+            echo "───────────────────────────────────────"
+            echo "$results_json" | jq -r '"\(.unique_id | tostring | if length < 4 then (4 - length) * \"0\" + . else . end): \(.name) (\(.path)) [\(.tags | join(\", \"))]"'
+        } | gum choose --header "🔍 Found $count bones. Choose an action:" || true)
         
-        if [[ -z "$selection" || "$selection" == "---"* ]]; then
+        if [[ -z "$selection" || "$selection" == "──"* ]]; then
             return 1
         fi
         
         if [[ "$selection" == "🐕 Bulk Edit Scents"* ]]; then
             bulk_update_file_tags "$results_json"
         else
-            file_id=$(echo "$selection" | cut -d':' -f1)
+            # Ensure we only extract the numeric ID and strip padding
+            file_id=$(echo "$selection" | cut -d':' -f1 | sed 's/^0*//')
+            [[ -z "$file_id" ]] && file_id=0
             update_file_tags "$file_id"
         fi
     fi
