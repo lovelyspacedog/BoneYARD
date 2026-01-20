@@ -4,37 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [1.5.7] - 2026-01-20
 
+### Added
+- **🐕 Bulk Scent Editing**: New advanced bulk tag management system.
+  - **Logic Keywords**: `KEEP` to preserve existing tags, `NOT` to remove specific tags.
+  - **Safety Warning**: Prompts users before performing bulk overrides without `KEEP`.
+  - **Batch Processing**: Apply tag logic to multiple bones simultaneously.
+
 ### Fixed
 - **🛡️ Database Resilience Overhaul**: Implemented comprehensive safeguards to prevent yard corruption.
   - **Atomic Writes**: Database updates now use temporary files and atomic moves.
   - **Pre-Sync Validation**: Data is verified as valid JSON before being written to disk.
   - **Safer Initialization**: Rewrote database creation logic to use `jq -n` for guaranteed syntax correctness.
   - **Bulk Update Guard**: Added defensive checks to the bulk update engine to prevent partial or empty data writes.
-
-## [1.5.6] - 2026-01-20
-
-### Fixed
-- **🐕 Bulk Update Stability**: Overhauled the bulk scent update engine to be significantly faster and more stable. 
+- **🐕 Bulk Update Stability**: Overhauled the bulk scent update engine to be significantly faster and more stable.
   - Replaced the individual per-file database writes with a single-pass batch update.
   - Fixed JQ indexing errors that occurred when processing multiple bones.
-
-## [1.5.5] - 2026-01-20
-
-### Fixed
 - **🐕 Script Stability**: Fixed a critical Bash syntax error in the tagging module caused by improper quote escaping in the bulk edit menu.
-
-## [1.5.4] - 2026-01-20
-
-### Fixed
 - **🐕 JQ Syntax Stability**: Fixed escaping issues in `jq` string interpolation that caused compile errors in the bulk edit menu.
-
-## [1.5.3] - 2026-01-20
-
-### Fixed
-- **🐕 Bulk Scent Selection Bug**:
-  - Fixed `gum` flag parsing errors when selecting individual bones for scent updates.
-  - Fixed `jq` JSON argument errors caused by malformed file ID extraction.
-  - Improved reliability of bulk scent editing selection menu.
+- **🐕 Bulk Scent Selection Bug**: Fixed `gum` flag parsing errors when selecting individual bones for scent updates and improved reliability of bulk scent editing selection menu.
 
 ## [1.5.2] - 2026-01-20
 
