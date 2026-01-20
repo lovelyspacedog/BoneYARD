@@ -166,6 +166,39 @@ get_tags_for_file() {
     fi
 }
 
+# Reconstruct CLI arguments from current state
+reconstruct_cli_args() {
+    RECONSTRUCTED_ARGS=()
+    
+    # 1. Database (If not default)
+    if [[ "$DATABASE_FILE" != "$SCRIPT_DIR/boneyard.json" ]]; then
+        RECONSTRUCTED_ARGS+=("--database" "$DATABASE_FILE")
+    fi
+    
+    # 2. Doggy Bag Mode
+    if [[ "$DOGGY_BAG_MODE" == "true" ]]; then
+        RECONSTRUCTED_ARGS+=("--doggy-bag")
+    fi
+    
+    # 3. With Dir
+    if [[ "$WITH_DIR" == "true" ]]; then
+        RECONSTRUCTED_ARGS+=("--with-dir")
+        if [[ "$WITH_DIR_SEP" != "," ]]; then
+            RECONSTRUCTED_ARGS+=("use" "$WITH_DIR_SEP")
+        fi
+    fi
+    
+    # 4. Contains Search
+    if [[ "$CONTAINS_SEARCH" == "true" ]]; then
+        RECONSTRUCTED_ARGS+=("--contains")
+    fi
+    
+    # 5. Pager
+    if [[ -n "$FORCED_PAGER" ]]; then
+        RECONSTRUCTED_ARGS+=("--pager" "$FORCED_PAGER")
+    fi
+}
+
 parse_arguments() {
     local tag_query_file=""
     local standalone_output=""

@@ -100,9 +100,10 @@ main_menu() {
             main_menu
             ;;
         "👜 Use a Doggy Bag (Save on Exit)")
-            # Relaunch with -b added
+            # Relaunch with -b added, preserving other args
+            reconstruct_cli_args
             release_db_lock
-            exec "$0" "-b" "$@"
+            exec "$0" "${RECONSTRUCTED_ARGS[@]}" "-b"
             ;;
         "🎾 Fetch Bones (Search)") search_file;;
         "🦴 Bury New Bone") add_file;;

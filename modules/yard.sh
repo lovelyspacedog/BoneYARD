@@ -69,25 +69,11 @@ switch_yard() {
     typewrite "The pack is moving to a new yard! (No bones will be transferred.)"
     sleep 1.5
 
-    # Prepare arguments: remove existing --database/-d and add the new one
-    local -a new_args=()
-    local skip_next=false
-    for arg in "$@"; do
-        if [[ "$skip_next" == "true" ]]; then
-            skip_next=false
-            continue
-        fi
-        case "$arg" in
-            -d|--database)
-                skip_next=true
-                ;;
-            *)
-                new_args+=("$arg")
-                ;;
-        esac
-    done
-
+    # Reconstruct arguments to preserve state (flags)
+    reconstruct_cli_args
+    
     # Release old lock before exec
     release_db_lock
-    exec "$0" "--database" "$new_db" "${new_args[@]}"
+    # Append new database argument (overrides any existing one in RECONSTRUCTED_ARGS)
+    exec "$0" "${RECONSTRUCTED_ARGS[@]}" "--database" "$new_db"
 }
