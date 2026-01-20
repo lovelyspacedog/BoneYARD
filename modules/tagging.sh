@@ -523,6 +523,127 @@ update_file_tags() {
     echo "✓ Scents updated successfully"
 }
 
+# Mass update tags for multiple files
+bulk_update_file_tags() {
+    local results_json="$1"
+    local count
+    count=$(echo "$results_json" | jq -s 'length')
+
+    echo ""
+    gum style --foreground 212 --border double --padding "0 1" "🐕 Bulk Update Scents ($count Bones)"
+    echo "Logic Keywords:"
+    echo "  - 'KEEP' : Preserve original scents (e.g., KEEP,new_scent)"
+    echo "  - 'NOT'  : Remove the next scent (e.g., KEEP,NOT,old_scent)"
+    echo ""
+    
+    local logic_input
+    logic_input=$(gum input --placeholder "Enter bulk scent logic (e.g., KEEP,tag1,NOT,tag2)" || true)
+    
+    if [[ -z "$logic_input" ]]; then
+        echo "No input entered. Operation cancelled."
+        return
+    fi
+
+    # Check for KEEP and warn if missing
+    local has_keep=false
+    IFS=',' read -ra check_tokens <<< "$logic_input"
+    for token in "${check_tokens[@]}"; do
+        local t=$(echo "$token" | xargs | tr '[:lower:]' '[:upper:]')
+        if [[ "$t" == "KEEP" ]]; then
+            has_keep=true
+            break
+        fi
+    done
+
+    if [[ "$has_keep" == "false" ]]; then
+        echo ""
+        gum style --foreground 196 --bold "⚠️  WARNING: 'KEEP' not found in logic."
+        echo "This will OVERRIDE ALL existing scents for these $count bones."
+        echo ""
+        local warn_choice
+        warn_choice=$(gum choose "Continue (Override All)" "Add 'KEEP' to Logic" "Cancel" || echo "Cancel")
+        
+        case "$warn_choice" in
+            "Add 'KEEP' to Logic")
+                logic_input="KEEP,$logic_input"
+                ;;
+            "Cancel")
+                echo "Operation cancelled."
+                return
+                ;;
+            *)
+                # Continue (Override All)
+                ;;
+        esac
+    fi
+
+    echo "Sniffing out changes... This may take a moment for many bones."
+
+    # Parse logic into arrays for faster processing
+    local to_add=()
+    local to_remove=()
+    local keep_original=false
+    
+    IFS=',' read -ra tokens <<< "$logic_input"
+    local i=0
+    while [[ $i -lt ${#tokens[@]} ]]; do
+        local token=$(echo "${tokens[$i]}" | xargs)
+        local upper_token=$(echo "$token" | tr '[:lower:]' '[:upper:]')
+        
+        if [[ "$upper_token" == "KEEP" ]]; then
+            keep_original=true
+        elif [[ "$upper_token" == "NOT" ]]; then
+            i=$((i + 1))
+            if [[ $i -lt ${#tokens[@]} ]]; then
+                to_remove+=($(echo "${tokens[$i]}" | xargs))
+            fi
+        elif [[ -n "$token" ]]; then
+            to_add+=("$token")
+        fi
+        i=$((i + 1))
+    done
+
+    # Prepare jq arguments
+    local add_json='[]'
+    for tag in "${to_add[@]}"; do add_json=$(jq -c --arg tag "$tag" '. += [$tag]' <<< "$add_json"); done
+    local rem_json='[]'
+    for tag in "${to_remove[@]}"; do rem_json=$(jq -c --arg tag "$tag" '. += [$tag]' <<< "$rem_json"); done
+
+    local timestamp
+    timestamp=$(date +%s)
+    
+    # Process each file
+    local updated_count=0
+    while read -r file_obj; do
+        local file_id=$(echo "$file_obj" | jq -r '.unique_id')
+        
+        # Process in JQ for robustness and case-insensitivity
+        DB_CACHE=$(jq --argjson id "$file_id" \
+                      --argjson add "$add_json" \
+                      --argjson rem "$rem_json" \
+                      --argjson keep "$keep_original" \
+                      --argjson ts "$timestamp" '
+            (.files[] | select(.unique_id == $id)) |= (
+                .tags as $orig |
+                (if $keep then $orig else [] end) as $base |
+                (($base + $add) | unique) as $added |
+                ($rem | map(ascii_downcase)) as $rem_low |
+                ($added | map(select(. as $t | ($rem_low | index($t | ascii_downcase) | not)))) as $final |
+                .tags = $final | .modified_timestamp = $ts
+            )' <<< "$DB_CACHE")
+        
+        updated_count=$((updated_count + 1))
+    done < <(echo "$results_json" | jq -c '.[]')
+
+    sync_db_to_disk
+    SESSION_MODIFIED=true
+    update_dir_cache
+    double_bark_sfx
+    
+    echo ""
+    echo "✓ Successfully updated $updated_count bones in the yard!"
+}
+
 # Edit tags for an existing file
 edit_tags() {
     play_menu_sound
@@ -567,19 +688,28 @@ select_and_update_file() {
     local file_id
     if [[ "$count" -eq 1 ]]; then
         file_id=$(echo "$results_json" | jq -r '.unique_id')
+        update_file_tags "$file_id"
     else
         play_menu_sound
         local selection
-        selection=$(echo "$results_json" | jq -r '"\(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end): \(.name) (\(.path)) [\(.tags | join(", "))]"' | gum choose --header "🔍 Select A Bone To Update Scents:" || true)
+        selection=$(echo "$results_json" | jq -r '"\(.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end): \(.name) (\(.path)) [\(.tags | join(", "))]"' | \
+            gum choose --header "🔍 Found $count bones. Choose an action:" \
+            "🐕 Bulk Edit Scents (All $count Bones)" \
+            "---------------------------------------" \
+            $(cat) || true)
         
-        if [[ -z "$selection" ]]; then
+        if [[ -z "$selection" || "$selection" == "---"* ]]; then
             return 1
         fi
         
-        file_id=$(echo "$selection" | cut -d':' -f1)
+        if [[ "$selection" == "🐕 Bulk Edit Scents"* ]]; then
+            bulk_update_file_tags "$results_json"
+        else
+            file_id=$(echo "$selection" | cut -d':' -f1)
+            update_file_tags "$file_id"
+        fi
     fi
     
-    update_file_tags "$file_id"
     pause
 }
 

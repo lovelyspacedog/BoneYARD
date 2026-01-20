@@ -5,20 +5,8 @@
 
 # Copyright (c) 2025-2026 Pup Tony under GPLv3
 # This software is free to use and modify, but must be distributed the same license
-# Made with all the love I'm legally allowed to give!
 
 set -euo pipefail
-
-# For a future implementation:
-# Restructure the script into separate files for each module/feature.
-# This will make the script more readable and maintainable.
-# Provide a flag in the main script that allows you to generate a standalone
-# script with all the modules/features combined into a single file.
-# Ensure that update mode is disabled when generating a standalone script.
-# Name the standalone script "BoneYARD-standalone.sh" and make it executable.
-# Check if the updater will copy over the new project scripts that will soon be added.
-# Update README.md; this script is no longer going to be mainly standalone. You must
-# generate it using the flag and, then, updates will be disabled.
 
 # === GLOBALS START ===
 # Doggy Bag Mode: No changes are written to the database until the user exits the TUI.
@@ -34,7 +22,7 @@ BONEYARD_STANDALONE=${BONEYARD_STANDALONE:-false}
 goodbye_text=()
 
 # Global Variables
-SOFTWARE_VERSION="1.5.1"
+SOFTWARE_VERSION="1.5.2"
 # This is the version of the database schema. 
 # Backwards compatibility is maintained within the same major version (X.0.0).
 # Software will refuse to run if the major version differs, or if the database 

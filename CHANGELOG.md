@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.2] - 2026-01-20
+
+### Added
+- **🐕 Bulk Scent Editing**:
+  - New "Bulk Edit Scents" option when multiple bones are selected for updating.
+  - Advanced logic keywords: `KEEP` to preserve original tags and `NOT` to remove specific tags.
+  - Built-in safety warning when performing bulk overrides without the `KEEP` keyword.
+
 ## [1.5.1] - 2026-01-20
 
 ### Fixed

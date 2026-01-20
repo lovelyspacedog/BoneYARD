@@ -27,7 +27,7 @@ BoneYARD uses dumb doggo terminology, such as:
 - **🎾 Fetch Bones**: Highly flexible search system. Filter by scent, bone name, kennel, or date range. Supports advanced boolean scent queries (AND, OR, NOT) and **Fuzzy Scent Matching**. (Now #1 priority in the main menu).
 - **🦴 Bury New Bone**: Pick a file using `ranger` and assign searchable scents.
 - **🐕 Bury Entire Litter**: Batch-tag an entire kennel with interactive copy, undo, skip, and "all" functionality. Now features **Smart Tagging** (duplicate detection) and a **Session Scents Tracker**.
-- **👃 Update Scents**: Quickly update or add new scents to any bone already in the yard.
+- **👃 Update Scents**: Quickly update or add new scents to any bone already in the yard. Now supports **Bulk Scent Editing** with `KEEP` and `NOT` logic keywords.
 - **🦴 Organize Bones**: Batch-organize your files into a new folder based on scent frequency.
 - **🧹 Clean Up the Yard**: Remove bones, entire kennels, or date ranges from your database.
 - **🏘️ Switch Yard**: Move the pack to a different JSON database file.
@@ -139,7 +139,7 @@ You can also sniff out scents directly from the terminal:
 Running `./boneyard --help` provides the following reference:
 
 ```text
-🐾 BoneYARD v1.5.1 (Yappy Archive and Retrieval Database)
+🐾 BoneYARD v1.5.2 (Yappy Archive and Retrieval Database)
 A powerful, interactive TUI system for burying and fetching bones using JSON.
 
 USAGE:
