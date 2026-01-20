@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.4] - 2026-01-20
+
+### Fixed
+- **🐕 JQ Syntax Stability**: Fixed escaping issues in `jq` string interpolation that caused compile errors in the bulk edit menu.
+
 ## [1.5.3] - 2026-01-20
 
 ### Fixed

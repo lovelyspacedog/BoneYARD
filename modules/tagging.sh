@@ -700,7 +700,11 @@ select_and_update_file() {
         selection=$( {
             echo "🐕 Bulk Edit Scents (All $count Bones)"
             echo "───────────────────────────────────────"
-            echo "$results_json" | jq -r '"\(.unique_id | tostring | if length < 4 then (4 - length) * \"0\" + . else . end): \(.name) (\(.path)) [\(.tags | join(\", \"))]"'
+            echo "$results_json" | jq -r --arg count "$count" '\''
+                .unique_id as $id |
+                (.unique_id | tostring | if length < 4 then (4 - length) * "0" + . else . end) as $padded_id |
+                "\($padded_id): \(.name) (\(.path)) [\(.tags | join(", "))]"
+            '\''
         } | gum choose --header "🔍 Found $count bones. Choose an action:" || true)
         
         if [[ -z "$selection" || "$selection" == "──"* ]]; then
