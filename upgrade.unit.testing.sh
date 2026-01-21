@@ -88,23 +88,29 @@ echo ""
 # Check if kitty can actually initialize (not just if display vars are set)
 if timeout 2 kitty -e echo "test" >/dev/null 2>&1; then
     # GUI environment available, use kitty
-    kitty --class "floating-windows" -e bash -c "
-        timestamp=\$(date +%s)
-        echo 'Setting up test environment...'
-        git clone https://github.com/lovelyspacedog/BoneYARD.git \"/tmp/boneyard-upgrade-test-\$timestamp\"
-        cd \"/tmp/boneyard-upgrade-test-\$timestamp\"
-        echo \"Checking out FROM version: \$SELECTED_FROM_COMMIT\"
-        git checkout \"\$SELECTED_FROM_COMMIT\"
-        echo \"Setting upgrade target to: \$SELECTED_TO_COMMIT\"
-        export BONEYARD_UPGRADE_COMMIT=\"\$SELECTED_TO_COMMIT\"
-        echo 'Launching BoneYARD...'
-        bash BoneYARD.sh
-        echo ''
-        read -p 'Press Enter to close this test window...'
-        echo 'Cleaning up test environment...'
-        rm -rf \"/tmp/boneyard-upgrade-test-\$timestamp\"
-        echo 'Cleanup complete.'
-    "
+    # Create a temporary script to avoid complex quoting issues
+    temp_script="/tmp/boneyard-upgrade-test-script-$$.sh"
+    cat > "$temp_script" << 'EOF'
+#!/bin/bash
+timestamp=$(date +%s)
+echo 'Setting up test environment...'
+git clone https://github.com/lovelyspacedog/BoneYARD.git "/tmp/boneyard-upgrade-test-$timestamp"
+cd "/tmp/boneyard-upgrade-test-$timestamp"
+echo "Checking out FROM version: '"$SELECTED_FROM_COMMIT"'"
+git checkout "$SELECTED_FROM_COMMIT"
+echo "Setting upgrade target to: '"$SELECTED_TO_COMMIT"'"
+export BONEYARD_UPGRADE_COMMIT="$SELECTED_TO_COMMIT"
+echo 'Launching BoneYARD...'
+bash BoneYARD.sh
+echo ''
+read -p 'Press Enter to close this test window...'
+echo 'Cleaning up test environment...'
+rm -rf "/tmp/boneyard-upgrade-test-$timestamp"
+echo 'Cleanup complete.'
+EOF
+    chmod +x "$temp_script"
+    kitty --class "floating-windows" -e "$temp_script"
+    rm -f "$temp_script"
 else
     # No GUI available, run directly in current terminal
     echo "No GUI display detected. Running upgrade test in current terminal..."
