@@ -22,15 +22,15 @@ BONEYARD_STANDALONE=${BONEYARD_STANDALONE:-false}
 goodbye_text=()
 
 # Global Variables
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 SOFTWARE_VERSION="$(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo "unknown")"
-# This is the version of the database schema. 
+# This is the version of the database schema.
 # Backwards compatibility is maintained within the same major version (X.0.0).
-# Software will refuse to run if the major version differs, or if the database 
+# Software will refuse to run if the major version differs, or if the database
 # version is newer than the software version.
 # BoneYARD (Yappy Archive and Retrieval Database)
-DATABASE_VERSION="$SOFTWARE_VERSION" 
+DATABASE_VERSION="$SOFTWARE_VERSION"
 REMOTE_VERSION=""
-SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 DATABASE_FILE="$SCRIPT_DIR/boneyard.json"
 WORKING_DATABASE_FILE="$DATABASE_FILE"
 DEFAULT_BACKUP_DIR="$HOME/Documents/boneyard_backups"
