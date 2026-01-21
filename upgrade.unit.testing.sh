@@ -85,8 +85,8 @@ echo "Launching BoneYARD at version $selected_version for upgrade testing..."
 echo "It will attempt to upgrade to version $selected_upgrade_version"
 echo ""
 
-# Check if we have a display available for GUI terminals
-if [[ -n "$DISPLAY" ]] || [[ -n "$WAYLAND_DISPLAY" ]]; then
+# Check if kitty can actually initialize (not just if display vars are set)
+if timeout 2 kitty -e echo "test" >/dev/null 2>&1; then
     # GUI environment available, use kitty
     kitty --class "floating-windows" -e bash -c "
         timestamp=\$(date +%s)
