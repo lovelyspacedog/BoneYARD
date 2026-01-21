@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **🧪 Testing Infrastructure**: Added `BONEYARD_UPGRADE_COMMIT` environment variable support for upgrade testing automation.
 
+### Fixed
+- **🐕 Version Display**: Fixed version display to read dynamically from VERSION file instead of being hardcoded, ensuring upgrades properly show the new version.
+
 ## [1.5.7] - 2026-01-20
 
 ### Added
