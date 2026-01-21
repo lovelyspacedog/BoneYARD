@@ -451,7 +451,7 @@ check_compatibility() {
             if [[ $remote_res -ne 2 ]]; then
                 echo "A new doghouse ($remote_v) is available that supports this database."
                 if gum confirm "Would you like to fetch the new doghouse now?"; then
-                    perform_update "$remote_v" "$BONEYARD_UPGRADE_COMMIT"
+                    perform_update "$remote_v" "${BONEYARD_UPGRADE_COMMIT:-}"
                 fi
             fi
         fi

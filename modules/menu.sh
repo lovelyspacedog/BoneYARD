@@ -96,7 +96,7 @@ main_menu() {
 
     case $choice in
         "🚀 Rebuild Doghouse (New Update Available!)") 
-            perform_update "$REMOTE_VERSION" "$BONEYARD_UPGRADE_COMMIT"
+            perform_update "$REMOTE_VERSION" "${BONEYARD_UPGRADE_COMMIT:-}"
             main_menu
             ;;
         "👜 Use a Doggy Bag (Save on Exit)")
