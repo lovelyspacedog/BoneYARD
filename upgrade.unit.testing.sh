@@ -85,20 +85,42 @@ echo "Launching BoneYARD at version $selected_version for upgrade testing..."
 echo "It will attempt to upgrade to version $selected_upgrade_version"
 echo ""
 
-kitty --class "floating-windows" -e bash -c "
+# Check if we have a display available for GUI terminals
+if [[ -n "$DISPLAY" ]] || [[ -n "$WAYLAND_DISPLAY" ]]; then
+    # GUI environment available, use kitty
+    kitty --class "floating-windows" -e bash -c "
+        timestamp=\$(date +%s)
+        echo 'Setting up test environment...'
+        git clone https://github.com/lovelyspacedog/BoneYARD.git \"/tmp/boneyard-upgrade-test-\$timestamp\"
+        cd \"/tmp/boneyard-upgrade-test-\$timestamp\"
+        echo \"Checking out FROM version: \$SELECTED_FROM_COMMIT\"
+        git checkout \"\$SELECTED_FROM_COMMIT\"
+        echo \"Setting upgrade target to: \$SELECTED_TO_COMMIT\"
+        export BONEYARD_UPGRADE_COMMIT=\"\$SELECTED_TO_COMMIT\"
+        echo 'Launching BoneYARD...'
+        bash BoneYARD.sh
+        echo ''
+        read -p 'Press Enter to close this test window...'
+        echo 'Cleaning up test environment...'
+        rm -rf \"/tmp/boneyard-upgrade-test-\$timestamp\"
+        echo 'Cleanup complete.'
+    "
+else
+    # No GUI available, run directly in current terminal
+    echo "No GUI display detected. Running upgrade test in current terminal..."
     timestamp=\$(date +%s)
     echo 'Setting up test environment...'
-    git clone https://github.com/lovelyspacedog/BoneYARD.git \"/tmp/boneyard-upgrade-test-\$timestamp\"
-    cd \"/tmp/boneyard-upgrade-test-\$timestamp\"
-    echo \"Checking out FROM version: \$SELECTED_FROM_COMMIT\"
-    git checkout \"\$SELECTED_FROM_COMMIT\"
-    echo \"Setting upgrade target to: \$SELECTED_TO_COMMIT\"
-    export BONEYARD_UPGRADE_COMMIT=\"\$SELECTED_TO_COMMIT\"
+    git clone https://github.com/lovelyspacedog/BoneYARD.git "/tmp/boneyard-upgrade-test-\$timestamp"
+    cd "/tmp/boneyard-upgrade-test-\$timestamp"
+    echo "Checking out FROM version: \$SELECTED_FROM_COMMIT"
+    git checkout "\$SELECTED_FROM_COMMIT"
+    echo "Setting upgrade target to: \$SELECTED_TO_COMMIT"
+    export BONEYARD_UPGRADE_COMMIT="\$SELECTED_TO_COMMIT"
     echo 'Launching BoneYARD...'
     bash BoneYARD.sh
     echo ''
     read -p 'Press Enter to close this test window...'
     echo 'Cleaning up test environment...'
-    rm -rf \"/tmp/boneyard-upgrade-test-\$timestamp\"
+    rm -rf "/tmp/boneyard-upgrade-test-\$timestamp"
     echo 'Cleanup complete.'
-"
+fi
