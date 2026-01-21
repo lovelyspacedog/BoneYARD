@@ -3,7 +3,7 @@
 # This script is used to test the upgrade process of the software.
 
 declare -A available_versions=(
-    [1.5.8]="5d2e990"
+    [1.5.8]="f3c4cf6"
     [1.5.7]="65edf83"
     [1.5.6]="1dca5c9"
     [1.5.5]="eb5b823"
